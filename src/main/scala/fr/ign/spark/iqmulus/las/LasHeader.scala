@@ -25,14 +25,14 @@ import java.io.{ InputStream, DataOutputStream, FileInputStream }
 
 case class LasHeader(
     location: String,
-    pdr_nb: Int,
+    pdr_nb: Long,
     pdr_format: Byte,
     pdr_length0: Short = 0,
     pmin: Array[Double] = Array.fill[Double](3)(0),
     pmax: Array[Double] = Array.fill[Double](3)(0),
     scale: Array[Double] = Array.fill[Double](3)(1),
     offset: Array[Double] = Array.fill[Double](3)(0),
-    pdr_return_nb: Array[Int] = Array.fill[Int](5)(0),
+    pdr_return_nb: Array[Long] = Array.fill[Long](15)(0),
     pdr_offset0: Int = 0,
     systemID: String = "spark",
     software: String = "fr.ign.spark",
@@ -44,7 +44,11 @@ case class LasHeader(
     projectID2: Short = 0,
     projectID3: Short = 0,
     projectID4: Array[Byte] = Array.fill[Byte](8)(0),
-    creation: Array[Short] = Array[Short](1, 1)) {
+    creation: Array[Short] = Array[Short](1, 1)//,
+ //   waveform_offset : Long = 0,
+ //   evlr_offset : Long = 0,
+ //   evlr_nb : Int = 0
+  ) {
 
   def schema: StructType = LasHeader.schema(pdr_format)
   def header_size: Short = LasHeader.header_size(version(0))(version(1))
@@ -152,6 +156,7 @@ case class LasHeader(
   def write(dos: DataOutputStream): Unit = {
     val bytes = Array.fill[Byte](header_size)(0);
     val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+
     buffer.put("LasF".getBytes)
     buffer.put(24, version(0))
     buffer.put(25, version(1))
@@ -164,12 +169,12 @@ case class LasHeader(
     buffer.putInt(100, vlr_nb)
     buffer.put(104, pdr_format)
     buffer.putShort(105, pdr_length)
-    buffer.putInt(107, pdr_nb)
-    buffer.putInt(111, pdr_return_nb(0))
-    buffer.putInt(115, pdr_return_nb(1))
-    buffer.putInt(119, pdr_return_nb(2))
-    buffer.putInt(123, pdr_return_nb(3))
-    buffer.putInt(127, pdr_return_nb(4))
+    buffer.putInt(107, pdr_nb.toInt)
+    buffer.putInt(111, pdr_return_nb(0).toInt)
+    buffer.putInt(115, pdr_return_nb(1).toInt)
+    buffer.putInt(119, pdr_return_nb(2).toInt)
+    buffer.putInt(123, pdr_return_nb(3).toInt)
+    buffer.putInt(127, pdr_return_nb(4).toInt)
     buffer.putDouble(131, scale(0))
     buffer.putDouble(139, scale(1))
     buffer.putDouble(147, scale(2))
@@ -182,6 +187,14 @@ case class LasHeader(
     buffer.putDouble(203, pmin(1))
     buffer.putDouble(211, pmax(2))
     buffer.putDouble(219, pmin(2))
+    if(version(1)==4)
+    {
+      buffer.putLong(227,0)//waveform_offset)
+      buffer.putLong(235,0)//evlr_offset)
+      buffer.putInt(243,0)//evlr_nb)
+      buffer.putLong(247,pdr_nb)
+      pdr_return_nb.zipWithIndex.foreach { case (x,i) => buffer.putLong(255+i*8,x) }
+    }
     dos.write(bytes)
   }
 
@@ -280,7 +293,7 @@ object LasHeader {
       Array.tabulate(n)((i: Int) => f(index + stride * i))
 
     val signature = readString(0, 4)
-    if (signature != "LasF") { println(s"$location : not a Las file, skipping"); return None}
+    if (signature != "LASF") { println(s"$location : not a LAS file, skipping (signature=$signature)"); return None}
     val sourceID = buffer.getShort(4)
     val globalEncoding = buffer.getShort(6)
     val projectID1 = buffer.getInt(8)
@@ -302,17 +315,32 @@ object LasHeader {
     val offset = get(155, 3, 8, buffer.getDouble)
     val pmin = get(187, 3, 16, buffer.getDouble)
     val pmax = get(179, 3, 16, buffer.getDouble)
-
+    
+    var waveform_offset : Long = 0
+    var evlr_offset : Long = 0
+    var evlr_nb = 0
+    var pdr_nb = pdr_nb_legacy.toLong
+    var pdr_return_nb = pdr_return_nb_legacy.map(_.toLong)
+    
+    if(version(1)==4)
+    {
+      waveform_offset = buffer.getLong(227)
+      evlr_offset = buffer.getLong(235)
+      evlr_nb = buffer.getInt(243)
+      pdr_nb = buffer.getLong(247)
+      pdr_return_nb = get(255, 15, 8, buffer.getLong)
+    }
+    
     Some(LasHeader(
       location,
-      pdr_nb_legacy,
+      pdr_nb,
       pdr_format,
       pdr_length,
       pmin,
       pmax,
       scale,
       offset,
-      pdr_return_nb_legacy,
+      pdr_return_nb,
       pdr_offset,
       systemID,
       software,
@@ -324,6 +352,10 @@ object LasHeader {
       projectID2,
       projectID3,
       projectID4,
-      creation))
+      creation//,
+   //   waveform_offset,
+   //   evlr_offset,
+   //   evlr_nb
+    ))
   }
 }

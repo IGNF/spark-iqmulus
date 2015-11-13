@@ -115,14 +115,14 @@ object PlyHeader {
 		var comments = Seq[String]()
 		var obj_info = Seq[String]()
 		var elements = Seq[PlyElement]()
-		val line1 = "Ply\r\n".toArray
+		val line1 = "ply\r\n".toArray
 		var nread = pb.read(line1, 0, 5)
 		val nl = if (nread == 5 && "\r\n".contains(line1(4))) 2 else 1
 		pb.unread(line1)
 		var line = br.readLine
 		var offset = line.length + nl
-		if (line != "Ply") {
-			println(s"$location : not a Ply file, skipping")
+		if (line != "ply") {
+			println(s"$location : not a PLY file, skipping")
 			None
 		} else {
 			line = br.readLine
@@ -134,14 +134,14 @@ object PlyHeader {
 						littleEndian = (words(1), words(2)) match {
 							case ("binary_little_endian", "1.0") => true
 							case ("binary_big_endian", "1.0")    => false
-							case _ => println(s"$location : Ply file with unsupported format ($line), skipping"); return None
+							case _ => println(s"$location : PLY file with unsupported format ($line), skipping"); return None
 						}
 					case (1, "end_header") => return Some(PlyHeader(location, littleEndian, offset, elements, obj_info, comments))
 					case (_, "comment") => comments :+= line;
 					case (_, "obj_info") => obj_info :+= words.tail.mkString(" ");
 					case (3, "element") => elements :+= PlyElement(words(1), littleEndian, words(2).toLong)
 					case (3, "property") => elements.last.properties :+= PlyProperty(words(2), words(1))
-					case (_, _) => println(s"$location : skipping ill-formed Ply header line : $line")
+					case (_, _) => println(s"$location : skipping ill-formed PLY header line : $line")
 				}
 				line = br.readLine
 			}
