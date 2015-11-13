@@ -117,9 +117,10 @@ private[iqmulus] class FixedLengthBinarySectionRecordReader
       // setup a buffer to store the record
       val buffer = recordValue.getBytes
       fileInputStream.readFully(buffer)
+      if(recordStride>recordLength) fileInputStream.skip(recordStride-recordLength)
       // update our current position
       currentPosition = currentPosition + recordStride
-      // return true
+      
       return true
     }
     false

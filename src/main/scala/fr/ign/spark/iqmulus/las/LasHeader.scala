@@ -27,7 +27,7 @@ case class LasHeader(
     location: String,
     pdr_nb: Long,
     pdr_format: Byte,
-    pdr_length0: Short = 0,
+    pdr_length_header: Short = 0,
     pmin: Array[Double] = Array.fill[Double](3)(0),
     pmax: Array[Double] = Array.fill[Double](3)(0),
     scale: Array[Double] = Array.fill[Double](3)(1),
@@ -53,7 +53,7 @@ case class LasHeader(
   def schema: StructType = LasHeader.schema(pdr_format)
   def header_size: Short = LasHeader.header_size(version(0))(version(1))
   def pdr_offset: Int = if (pdr_offset0 > 0) pdr_offset0 else header_size
-  def pdr_length: Short = if (pdr_length0 > 0) pdr_length0 else LasHeader.pdr_length(pdr_format)
+  def pdr_length: Short = Math.max(pdr_length_header,LasHeader.pdr_length(pdr_format)).toShort
 
   override def toString =
     f"""---------------------------------------------------------
@@ -156,6 +156,7 @@ case class LasHeader(
   def write(dos: DataOutputStream): Unit = {
     val bytes = Array.fill[Byte](header_size)(0);
     val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+    def legacy(x : Long) = if(x > Int.MaxValue) 0 else x.toInt
 
     buffer.put("LasF".getBytes)
     buffer.put(24, version(0))
@@ -169,12 +170,8 @@ case class LasHeader(
     buffer.putInt(100, vlr_nb)
     buffer.put(104, pdr_format)
     buffer.putShort(105, pdr_length)
-    buffer.putInt(107, pdr_nb.toInt)
-    buffer.putInt(111, pdr_return_nb(0).toInt)
-    buffer.putInt(115, pdr_return_nb(1).toInt)
-    buffer.putInt(119, pdr_return_nb(2).toInt)
-    buffer.putInt(123, pdr_return_nb(3).toInt)
-    buffer.putInt(127, pdr_return_nb(4).toInt)
+    buffer.putInt(107, legacy(pdr_nb))
+    pdr_return_nb.zipWithIndex.foreach { case (x,i) => buffer.putInt(111+i*4,legacy(x)) }
     buffer.putDouble(131, scale(0))
     buffer.putDouble(139, scale(1))
     buffer.putDouble(147, scale(2))
@@ -218,7 +215,7 @@ case class LasHeader(
 
 object LasHeader {
   val header_size: Map[Int, Map[Int, Short]] = Map(1 -> Map(2 -> 227, 4 -> 375))
-  val pdr_length: Map[Byte, Short] = Map(0 -> 20, 1 -> 28).map(x => (x._1.toByte, x._2.toShort))
+  def pdr_length(format : Byte) = schema(format).defaultSize.toShort
 
   val schema: Array[StructType] = {
     val array = Array.ofDim[Array[(String, DataType)]](11)
