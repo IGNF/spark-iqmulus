@@ -65,7 +65,7 @@ case class BinarySection(
  * TODO
  * @param TODO
  */
-abstract class BinarySectionRelation extends HadoopFsRelation {
+abstract class BinarySectionRelation extends HadoopFsRelation with org.apache.spark.Logging {
 
 	def sections: Array[BinarySection]
 
@@ -73,13 +73,10 @@ abstract class BinarySectionRelation extends HadoopFsRelation {
 	 * Determine the RDD Schema based on the se header info.
 	 * @return StructType instance
 	 */
-	//override val dataSchema: StructType = sections.head.schema
-	override val dataSchema: StructType = sections.map(_.schema).reduce(_ merge _)
-
-	override def paths = sections.map(_.location)
+	override lazy val dataSchema: StructType =
+	  if (sections.isEmpty) StructType(Nil) else  sections.map(_.schema).reduce(_ merge _)
 
 	override def prepareJobForWrite(job: org.apache.hadoop.mapreduce.Job): org.apache.spark.sql.sources.OutputWriterFactory = ???
-
 
 	private[iqmulus] def baseRDD(section : BinarySection, toSeq: ((LongWritable, BytesWritable) => Seq[Any])): RDD[Row] = {
 		val conf = sqlContext.sparkContext.hadoopConfiguration
@@ -106,7 +103,7 @@ abstract class BinarySectionRelation extends HadoopFsRelation {
 					sections.map {section => baseRDD(section,section.getSubSeq(dataSchema,requiredColumns)) })
 		}
 	}
-
+	
 }
 
 

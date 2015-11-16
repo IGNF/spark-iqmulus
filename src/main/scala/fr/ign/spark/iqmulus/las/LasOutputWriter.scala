@@ -93,7 +93,7 @@ class LasOutputWriter(name: String, dataSchema: StructType, context: TaskAttempt
     val format = 0.toByte
     val schema = LasHeader.schema(format)
     val cols   = schema.fieldNames.intersect(dataSchema.fieldNames)
-    new LasHeader(name,count,format)
+    new LasHeader(name,format,count)
   }
   
   def headerWriter =  {
@@ -103,7 +103,7 @@ class LasOutputWriter(name: String, dataSchema: StructType, context: TaskAttempt
     dos
   }
   
-  private val recordWriter = headerWriter
+  private val recordWriter = new RowOutputStream(headerWriter,dataSchema)
   
   override def write(row: Row): Unit = { 
     print(".")
@@ -113,7 +113,7 @@ class LasOutputWriter(name: String, dataSchema: StructType, context: TaskAttempt
 
   override def close(): Unit = {  
     println("close")  
-    recordWriter.close
+    recordWriter.dos.close
     headerWriter.close
   }
 }

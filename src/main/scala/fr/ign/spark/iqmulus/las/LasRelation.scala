@@ -19,18 +19,23 @@ package fr.ign.spark.iqmulus.las
 import fr.ign.spark.iqmulus.{ BinarySectionRelation, BinarySection, using }
 import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.sources.OutputWriterFactory
+import org.apache.hadoop.mapreduce.Job
 
-class LasRelation (locations: Array[String])
+class LasRelation (override val paths: Array[String])
 		(@transient val sqlContext: SQLContext) extends BinarySectionRelation {
 
-	lazy val headers: Array[LasHeader] = locations flatMap {
-		location => 
+	lazy val headers: Array[LasHeader] = paths flatMap { location => 
 		val path = new Path(location)
 		val fs = FileSystem.get(path.toUri, sqlContext.sparkContext.hadoopConfiguration)
-		using(fs.open(path)) { dataInputStream => LasHeader.read(location,dataInputStream) }
+		try using(fs.open(path)) { dis => LasHeader.read(location,dis) }
+		catch { case _ : java.io.FileNotFoundException => logWarning(s"File not found : $location, skipping"); None }
 	}
 
 	override def sections: Array[BinarySection] = headers.map(_.toBinarySection)
 
+    override def prepareJobForWrite(job: Job): OutputWriterFactory = {
+      new LasOutputWriterFactory(dataSchema)
+    }
 }
 

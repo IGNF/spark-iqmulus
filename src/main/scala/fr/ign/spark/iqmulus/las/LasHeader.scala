@@ -25,9 +25,8 @@ import java.io.{ InputStream, DataOutputStream, FileInputStream }
 
 case class LasHeader(
     location: String,
-    pdr_nb: Long,
     pdr_format: Byte,
-    pdr_length_header: Short = 0,
+    pdr_nb: Long = 0,
     pmin: Array[Double] = Array.fill[Double](3)(0),
     pmax: Array[Double] = Array.fill[Double](3)(0),
     scale: Array[Double] = Array.fill[Double](3)(1),
@@ -35,16 +34,17 @@ case class LasHeader(
     pdr_return_nb: Array[Long] = Array.fill[Long](15)(0),
     pdr_offset0: Int = 0,
     systemID: String = "spark",
-    software: String = "fr.ign.spark",
-    version: Array[Byte] = Array[Byte](1, 4),
-    sourceID: Int = 0,
-    globalEncoding: Int = 0,
+    software: String = "fr.ign.spark.iqmulus",
+    version: Array[Byte] = Array[Byte](1, 2),
+    sourceID: Short = 0,
+    globalEncoding: Short = 0,
     vlr_nb: Int = 0,
+    pdr_length_header: Short = 0,
     projectID1: Int = 0,
     projectID2: Short = 0,
     projectID3: Short = 0,
     projectID4: Array[Byte] = Array.fill[Byte](8)(0),
-    creation: Array[Short] = Array[Short](1, 1)//,
+    creation: Array[Short] = Array[Short](0,0)//,
  //   waveform_offset : Long = 0,
  //   evlr_offset : Long = 0,
  //   evlr_nb : Int = 0
@@ -158,39 +158,44 @@ case class LasHeader(
     val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
     def legacy(x : Long) = if(x > Int.MaxValue) 0 else x.toInt
 
-    buffer.put("LasF".getBytes)
-    buffer.put(24, version(0))
-    buffer.put(25, version(1))
-    buffer.put(systemID.getBytes, 26, systemID.length)
-    buffer.put(software.getBytes, 58, software.length)
-    buffer.putShort(90, creation(0))
-    buffer.putShort(92, creation(1))
-    buffer.putShort(94, header_size)
-    buffer.putInt(94, pdr_offset)
-    buffer.putInt(100, vlr_nb)
-    buffer.put(104, pdr_format)
-    buffer.putShort(105, pdr_length)
-    buffer.putInt(107, legacy(pdr_nb))
-    pdr_return_nb.take(5).zipWithIndex.foreach { case (x,i) => buffer.putInt(111+i*4,legacy(x)) }
-    buffer.putDouble(131, scale(0))
-    buffer.putDouble(139, scale(1))
-    buffer.putDouble(147, scale(2))
-    buffer.putDouble(155, offset(0))
-    buffer.putDouble(163, offset(1))
-    buffer.putDouble(171, offset(2))
-    buffer.putDouble(179, pmax(0))
-    buffer.putDouble(187, pmin(0))
-    buffer.putDouble(195, pmax(1))
-    buffer.putDouble(203, pmin(1))
-    buffer.putDouble(211, pmax(2))
-    buffer.putDouble(219, pmin(2))
+    buffer.put("LASF".getBytes)
+    buffer.putShort(sourceID)
+    buffer.putShort(globalEncoding)
+    buffer.putInt(projectID1)
+    buffer.putShort(projectID2)
+    buffer.putShort(projectID3)
+    projectID4.take(8).foreach (buffer.put)
+    buffer.put(version(0))
+    buffer.put(version(1))
+    buffer.put(systemID.padTo(32, '\0').getBytes)
+    buffer.put(software.padTo(32, '\0').getBytes)
+    buffer.putShort(creation(0))
+    buffer.putShort(creation(1))
+    buffer.putShort(header_size)
+    buffer.putInt(pdr_offset)
+    buffer.putInt(vlr_nb)
+    buffer.put(pdr_format)
+    buffer.putShort(pdr_length)
+    buffer.putInt(legacy(pdr_nb))
+    pdr_return_nb.take(5).foreach { x => buffer.putInt(legacy(x)) }
+    scale.take(3).foreach(buffer.putDouble)
+    offset.take(3).foreach(buffer.putDouble)
+    buffer.putDouble(pmax(0))
+    buffer.putDouble(pmin(0))
+    buffer.putDouble(pmax(1))
+    buffer.putDouble(pmin(1))
+    buffer.putDouble(pmax(2))
+    buffer.putDouble(pmin(2))
+    if(version(1)>=3)
+    {
+      buffer.putLong(0)//waveform_offset)
+    }
     if(version(1)==4)
     {
-      buffer.putLong(227,0)//waveform_offset)
-      buffer.putLong(235,0)//evlr_offset)
-      buffer.putInt(243,0)//evlr_nb)
-      buffer.putLong(247,pdr_nb)
-      pdr_return_nb.zipWithIndex.foreach { case (x,i) => buffer.putLong(255+i*8,x) }
+      buffer.putLong(0)//evlr_offset)
+      buffer.putInt(0)//evlr_nb)
+      buffer.putLong(pdr_nb)
+      pdr_return_nb.take(15).foreach(buffer.putLong)
     }
     dos.write(bytes)
   }
@@ -333,9 +338,8 @@ object LasHeader {
     
     Some(LasHeader(
       location,
-      pdr_nb,
       pdr_format,
-      pdr_length,
+      pdr_nb,
       pmin,
       pmax,
       scale,
@@ -348,6 +352,7 @@ object LasHeader {
       sourceID,
       globalEncoding,
       vlr_nb,
+      pdr_length,
       projectID1,
       projectID2,
       projectID3,

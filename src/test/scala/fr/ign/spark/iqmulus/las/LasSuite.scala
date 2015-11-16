@@ -37,7 +37,7 @@ class LasSuite extends FunSuite with ShouldMatchers {
 		(1,4,7,0,36,    20,"bf4736040f40156611f11e84bed9f78f473c8e92","http://www.cs.unc.edu/~isenburg/lastools/las14/las14_type7_fugro_sample.las"),
 		(1,4,6,3,36, 99756,"7c7fbf15187bd27c3af31f53185665a1d6480fe2","http://www.cs.unc.edu/~isenburg/lastools/las14/las14_type6_MLS_RIEGL_VMX450.las"),
 		(1,4,7,2,36, 22600,"ad26eb6919c89d9ddbd18012eed0765d03487a4f","http://www.cs.unc.edu/~isenburg/lastools/las14/las14_type7_globalmapper.las"),
-    (1,0,0,5,20, 11781,"66f9d75c462532124dba56c617782e3570087de4","http://www.liblas.org/samples/ComplexSRSInfo.las"),
+		(1,0,0,5,20, 11781,"66f9d75c462532124dba56c617782e3570087de4","http://www.liblas.org/samples/ComplexSRSInfo.las"),
 		(1,2,0,0,20,497536,"b64b1632b5bf529b6ff7ebd75edcff7f5432f722","http://www.liblas.org/samples/libLAS_1.2.las"),
 		(1,0,0,5,20, 11781,"66f9d75c462532124dba56c617782e3570087de4","http://www.liblas.org/samples/lt_srs_rt.las"),
 		(1,1,0,0,20, 11781,"59f38a04c1aa3ad4989c30331e216e09b4f5aae8","http://www.liblas.org/samples/lt_srs_rt-qt-1.1.las"),

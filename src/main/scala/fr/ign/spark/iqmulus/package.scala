@@ -139,19 +139,6 @@ package object iqmulus {
 				 */
 	}
 
-	/*
-  implicit class DataTypeWithSize(dataType: DataType) {
-    def size: Byte = dataType match {
-      case ByteType => 1
-      case ShortType => 2
-      case IntegerType => 4
-      case LongType => 8
-      case FloatType => 4
-      case DoubleType => 8
-      case other => sys.error(s"Unsupported type $other")
-    }
-  }
-	 */
 	implicit class StructFieldWithGet(field: StructField) {
 		def get(offset: Int): (ByteBuffer => Any) = field.dataType match {
 		case ByteType => b => b get offset
@@ -159,25 +146,29 @@ package object iqmulus {
 		case IntegerType => b => b getInt offset
 		case LongType => b => b getLong offset
 		case FloatType => b => b getFloat offset
-    case DoubleType => b => b getDouble offset
-    case NullType => b => null
+		case DoubleType => b => b getDouble offset
+		case NullType => b => null
 		case other => sys.error(s"Unsupported type $other")
 		}
 	}
-
-	implicit class RowOutputStream(dos: DataOutputStream) {
+	
+	case class RowOutputStream(dos: DataOutputStream, schema: StructType) {
+  	    val bytes  = Array.fill[Byte](schema.map(_.dataType.defaultSize).sum)(0);
+        val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+        
 		def write(row: Row) = {
-			val typeValue = row.toSeq zipAll (row.schema.fields.map(_.dataType), 0, ByteType)
-					typeValue.foreach {
-					case (v, ByteType) => dos writeByte v.asInstanceOf[Byte]
-					case (v, ShortType) => dos writeShort v.asInstanceOf[Short]
-					case (v, IntegerType) => dos writeInt v.asInstanceOf[Int]
-					case (v, LongType) => dos writeLong v.asInstanceOf[Long]
-					case (v, FloatType) => dos writeFloat v.asInstanceOf[Float]
-          case (v, DoubleType) => dos writeDouble v.asInstanceOf[Double]
-          case (v, NullType) => ()
-					case (_, other) => sys.error(s"Unsupported type $other")
-			}
+          schema.fields.map{f => (f.dataType,row.schema.fields.indexWhere(_.name == f.name))} .foreach { 
+			case (_,-1) => ()
+			case (ByteType,i) => buffer put (row.getByte(i))
+			case (ShortType,i) => buffer putShort (row.getShort(i))
+			case (IntegerType,i) => buffer putInt (row.getInt(i))
+			case (LongType,i) => buffer putLong (row.getLong(i))
+			case (FloatType,i) => buffer putFloat (row.getFloat(i))
+			case (DoubleType,i) => buffer putDouble (row.getDouble(i))
+			case (NullType,_) => ()
+			case (other,_) => sys.error(s"Unsupported type $other")
+           }
+          dos write bytes
 		}
 	}
 }
