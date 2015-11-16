@@ -171,7 +171,7 @@ case class LasHeader(
     buffer.put(104, pdr_format)
     buffer.putShort(105, pdr_length)
     buffer.putInt(107, legacy(pdr_nb))
-    pdr_return_nb.zipWithIndex.foreach { case (x,i) => buffer.putInt(111+i*4,legacy(x)) }
+    pdr_return_nb.take(5).zipWithIndex.foreach { case (x,i) => buffer.putInt(111+i*4,legacy(x)) }
     buffer.putDouble(131, scale(0))
     buffer.putDouble(139, scale(1))
     buffer.putDouble(147, scale(2))
@@ -214,7 +214,7 @@ case class LasHeader(
     */
 
 object LasHeader {
-  val header_size: Map[Int, Map[Int, Short]] = Map(1 -> Map(2 -> 227, 4 -> 375))
+  val header_size: Map[Int, Array[Short]] = Map(1 -> Array(227,227,227,235,375))
   def pdr_length(format : Byte) = schema(format).defaultSize.toShort
 
   val schema: Array[StructType] = {
@@ -319,9 +319,12 @@ object LasHeader {
     var pdr_nb = pdr_nb_legacy.toLong
     var pdr_return_nb = pdr_return_nb_legacy.map(_.toLong)
     
-    if(version(1)==4)
+    if(version(1)>=3)
     {
       waveform_offset = buffer.getLong(227)
+    }
+    if(version(1)>=4)
+    {
       evlr_offset = buffer.getLong(235)
       evlr_nb = buffer.getInt(243)
       pdr_nb = buffer.getLong(247)
