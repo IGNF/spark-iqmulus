@@ -29,7 +29,7 @@ import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.Expression
 
-
+// workaround the protected Cast nullSafeEval to make it public
 class IQmulusCast(child: Expression, dataType: DataType)
 extends Cast(child, dataType) {
   override def nullSafeEval(input: Any): Any = super.nullSafeEval(input)
@@ -42,14 +42,14 @@ case class BinarySection(
 		littleEndian: Boolean,
 		private val _schema: StructType,
 		private val _stride: Int = 0,
-		gidName: String = "gid") {
+		idName: String = "id") {
 
 	val sizes = _schema.fields.map(_.dataType.defaultSize)
 	val offsets = sizes.scanLeft(0)(_ + _)
 	val length = offsets.last
 	val stride = if (_stride > 0) _stride else length
 	def size: Long = stride * count
-	val schema = StructType(StructField(gidName, LongType, false) +: _schema.fields)
+	val schema = StructType(StructField(idName, LongType, false) +: _schema.fields)
       
     val fieldOffsetMap : Map[String,(StructField,Int)]= (schema.fields.tail zip offsets) map (x => (x._1.name,x)) toMap
 
@@ -70,9 +70,9 @@ case class BinarySection(
 	}
 	
 
-	def getSeqAux(prop: Seq[(DataType,(StructField, Int))], gid: Boolean = true)(id: LongWritable, bytes: BytesWritable): Seq[Any] = {
+	def getSeqAux(prop: Seq[(DataType,(StructField, Int))], id: Boolean = true)(key: LongWritable, bytes: BytesWritable): Seq[Any] = {
 		val seq = (bytesSeq(prop) map (_(toBuffer(bytes))))
-		if (gid) (id.get +: seq) else seq
+		if (id) (key.get +: seq) else seq
 	}
 
 	def getSubSeq(dataSchema: StructType, requiredColumns: Array[String]) = {
@@ -80,7 +80,7 @@ case class BinarySection(
       val requiredFieldsWithOffsets = fieldsWithOffsets filter {
         case (_, (f, _)) => (requiredColumns contains f.name)
   	  }
-      getSeqAux(requiredFieldsWithOffsets, requiredColumns contains gidName) _
+      getSeqAux(requiredFieldsWithOffsets, requiredColumns contains idName) _
 	}
 }
 
