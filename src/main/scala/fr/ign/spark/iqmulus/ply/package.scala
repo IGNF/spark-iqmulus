@@ -16,7 +16,8 @@
 
 package fr.ign.spark.iqmulus
 
-import org.apache.spark.sql.{SQLContext, DataFrameReader, DataFrameWriter, DataFrame}
+import org.apache.spark.sql.{SQLContext, DataFrameReader, DataFrameWriter, DataFrame, Row}
+import org.apache.spark.sql.types.StructType
 
 package object ply {
 
@@ -35,6 +36,55 @@ package object ply {
   implicit class PlyDataFrameReader(reader: DataFrameReader) {
     def ply: String => DataFrame = reader.format("fr.ign.spark.iqmulus.ply").load
   }
+
   
+    implicit class PlyDataFrame(df: DataFrame) {
+     def saveAsPly(
+         location: String
+       ) = {
+       val df2 = df.drop("id").na.fill(0)
+       val schema = df2.schema
+       val saver = savePlyRow(schema,filename(location) _) _
+       df2.rdd.mapPartitionsWithIndex(saver, true)
+     }
+   }
+
+   def filename(location : String)(key : Int) = s"$location/$key.ply"
+   
+   def savePlyProduct[Key](
+       schema : StructType,
+       filename : (Key => String) )
+     (key : Key, iter : Iterator[Product]) : Iterator[(String,Long)] = {
+     savePlyRow(schema,filename)(key,iter.map(Row.fromTuple))
+   }
+
+   def savePly[Key,Value](
+       schema : StructType,
+       filename : (Key => String) )
+     (key : Key, iter : Iterator[Value]) : Iterator[(String,Long)] = {
+     if(iter.isInstanceOf[Iterator[Product]])
+       savePlyProduct(schema,filename)(key,iter.asInstanceOf[Iterator[Product]])
+     else savePlyRow(schema,filename)(key,iter.map(value => Row.apply(value)))
+   }
+   
+   def savePlyRow[Key](
+       schema : StructType,
+       filename : (Key => String) )
+     (key : Key, iter : Iterator[Row]) = {
+      val name = filename(key)
+      val path = new org.apache.hadoop.fs.Path(name)
+      val fs = path.getFileSystem(new org.apache.hadoop.conf.Configuration)
+      val f = fs.create(path)
+      val rows  = iter.toArray
+      val count = rows.size.toLong
+      val header = new PlyHeader(Map("vertex" -> ((count, schema))), false)
+      val dos = new java.io.DataOutputStream(f);
+      dos.write(header.toString.getBytes)
+      val ros = new RowOutputStream(dos,schema)
+      rows.foreach(ros.write)
+      dos.close
+      Iterator((name,count))
+    }
+   
 }
 

@@ -17,6 +17,9 @@
 package fr.ign.spark.iqmulus
 
 import org.apache.spark.sql.{SQLContext, DataFrameReader, DataFrameWriter, DataFrame}
+//import scala.reflect.ClassTag
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.Row
 
 package object las {
 
@@ -45,7 +48,8 @@ package object las {
          scale  : Array[Double] = Array(0.01,0.01,0.01), 
          offset : Array[Double] = Array(0,0,0)
        ) = {
-       val fieldSet = df.drop("gid").schema.fields.toSet
+       val dfna = df.drop("id").na.fill(0)
+       val fieldSet = dfna.schema.fields.toSet
        val format = formatOpt.getOrElse((LasHeader.schema.indexWhere {schema => fieldSet subsetOf schema.fields.toSet }).toByte)
        if(format == -1) {
          sys.error(s"dataframe schema is not a subset of any LAS format schema")
@@ -53,39 +57,66 @@ package object las {
        val schema = LasHeader.schema(format) // no user types for now
        val cols   = schema.fieldNames.intersect(df.schema.fieldNames)
        //val conf = df.sqlContext.sparkContext.hadoopConfiguration // issue : not serializable
-       df.select(cols.head, cols.tail :_*).rdd.mapPartitionsWithIndex({ // emulate foreachPartitionsWithIndex
-         case (pid, iter) =>
-           val rows = iter.toArray // materialize the partition to access it in a single pass, TODO workaround that 
-           var count = rows.length
-           val pmin = Array.fill[Double](3)(Double.PositiveInfinity)
-           val pmax = Array.fill[Double](3)(Double.NegativeInfinity)
-           val countByReturn = Array.fill[Long](15)(0)
-           rows.foreach { row =>
-             val x = offset(0)+scale(0)*row.getAs[Int]("x").toDouble
-             val y = offset(1)+scale(1)*row.getAs[Int]("y").toDouble
-             val z = offset(2)+scale(2)*row.getAs[Int]("z").toDouble
-             val ret = row.getAs[Byte]("flags") & 0x3
-             countByReturn(ret) += 1
-             pmin(0) = Math.min(pmin(0),x)
-             pmin(1) = Math.min(pmin(1),y)
-             pmin(2) = Math.min(pmin(2),z)
-             pmax(0) = Math.max(pmax(0),x)
-             pmax(1) = Math.max(pmax(1),y)
-             pmax(2) = Math.max(pmax(2),z)
-           }
-           val name = s"$location/$pid.las"
-           val path = new org.apache.hadoop.fs.Path(name)
-           val fs = path.getFileSystem(new org.apache.hadoop.conf.Configuration)
-           val f = fs.create(path)
-           val header = new LasHeader(name,format,count,pmin,pmax,scale,offset,version=Array(major,minor),pdr_return_nb=countByReturn)
-           val dos = new java.io.DataOutputStream(f);
-           header.write(dos)
-           val ros = new RowOutputStream(dos,schema)
-           rows.foreach(ros.write)
-           dos.close
-           Iterator((name,count))
-       }, true)
+       val saver = saveLasRow(schema,format,scale,offset,Array(major,minor),filename(location)) _
+       dfna.select(cols.head, cols.tail :_*).rdd.mapPartitionsWithIndex(saver, true)
      }
    }
 
+   def filename(location : String)(key : Int) = s"$location/$key.las"
+      
+   def saveLasProduct[Key](
+       schema : StructType, format : Byte,
+       scale : Array[Double], offset : Array[Double], version : Array[Byte],
+       filename : (Key => String) )
+     (key : Key, iter : Iterator[Product]) : Iterator[(String,Long)] = {
+     saveLasRow(schema,format,scale,offset,version,filename)(key,iter.map(Row.fromTuple))
+   }
+
+   def saveLas[Key,Value](
+       schema : StructType, format : Byte,
+       scale : Array[Double], offset : Array[Double], version : Array[Byte],
+       filename : (Key => String) )
+     (key : Key, iter : Iterator[Value]) : Iterator[(String,Long)] = {
+     if(iter.isInstanceOf[Iterator[Product]])
+       saveLasProduct(schema,format,scale,offset,version,filename)(key,iter.asInstanceOf[Iterator[Product]])
+     else saveLasRow(schema,format,scale,offset,version,filename)(key,iter.map(value => Row.apply(value)))
+   }
+   
+   
+   
+   def saveLasRow[Key](
+       schema : StructType, format : Byte,
+       scale : Array[Double], offset : Array[Double], version : Array[Byte],
+       filename : (Key => String) )
+     (key : Key, iter: Iterator[Row]) = {
+      val rows = iter.toArray // materialize the partition to access it in a single pass, TODO workaround that 
+      val count = rows.length.toLong
+      val pmin = Array.fill[Double](3)(Double.PositiveInfinity)
+      val pmax = Array.fill[Double](3)(Double.NegativeInfinity)
+      val countByReturn = Array.fill[Long](15)(0)
+      rows.foreach { row =>
+         val x = offset(0)+scale(0)*row.getAs[Int]("x").toDouble
+         val y = offset(1)+scale(1)*row.getAs[Int]("y").toDouble
+         val z = offset(2)+scale(2)*row.getAs[Int]("z").toDouble
+         val ret = row.getAs[Byte]("flags") & 0x3
+         countByReturn(ret) += 1
+         pmin(0) = Math.min(pmin(0),x)
+         pmin(1) = Math.min(pmin(1),y)
+         pmin(2) = Math.min(pmin(2),z)
+         pmax(0) = Math.max(pmax(0),x)
+         pmax(1) = Math.max(pmax(1),y)
+         pmax(2) = Math.max(pmax(2),z)
+      }
+      val name = filename(key)
+      val path = new org.apache.hadoop.fs.Path(name)
+      val fs = path.getFileSystem(new org.apache.hadoop.conf.Configuration)
+      val f = fs.create(path)
+      val header = new LasHeader(name,format,count,pmin,pmax,scale,offset,version=version,pdr_return_nb=countByReturn)
+      val dos = new java.io.DataOutputStream(f);
+      header.write(dos)
+      val ros = new RowOutputStream(dos,schema)
+      rows.foreach(ros.write)
+      dos.close
+      Iterator((name,count))
+    }  
 }
