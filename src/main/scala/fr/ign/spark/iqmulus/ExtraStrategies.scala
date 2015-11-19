@@ -24,6 +24,7 @@ import org.apache.spark.sql.{Row, Strategy => SQLStrategy, SQLContext}
 import org.apache.spark.sql.catalyst.expressions.{Alias, IntegerLiteral}
 //import org.apache.spark.sql.execution.datasources.LogicalRelation // private, see workaround below...
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.{Min, Max, Count, Expression, NamedExpression}
 
@@ -78,7 +79,7 @@ object AggregatePlan {
 object Strategy extends SQLStrategy with Serializable {
   
   //work around private[sql] for org.apache.spark.sql.execution.datasources.LogicalRelation
-  def relationMap[Relation](plan : LogicalPlan, f : Relation => Seq[SparkPlan]) = {
+  def relationMap[Relation <: BaseRelation](plan : LogicalPlan, f : Relation => Seq[SparkPlan]) = {
       val field = plan.getClass.getDeclaredFields.find(_.getName == "relation")
       field.foreach(_.setAccessible(true))
       field.map(_.get(plan)) match {

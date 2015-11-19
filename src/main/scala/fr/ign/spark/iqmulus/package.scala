@@ -66,7 +66,7 @@ package object iqmulus {
 						merge(leftValueType, rightValueType),
 						leftContainsNull || rightContainsNull)
 
-				case (leftStruct @ StructType(_), rightStruct @ StructType(_)) =>
+				case (leftStruct : StructType, rightStruct : StructType) =>
 				merge(leftStruct,rightStruct)
 				/* // commented out because DecimalType.Fixed is private
       case (DecimalType.Fixed(leftPrecision, leftScale),
@@ -94,32 +94,28 @@ package object iqmulus {
 				throw new SparkException(s"Failed to merge incompatible data types $left and $right")
 		}
 
+		// todo : metadata handling !
 		private[iqmulus] def merge(left: StructType, right: StructType): StructType = {
 				val newFields = ArrayBuffer.empty[StructField]
 
 						val rightMapped = fieldsMap(right.fields)
-						left.fields.foreach {
-						case leftField @ StructField(leftName, leftType, leftNullable, _) =>
-						rightMapped.get(leftName)
-						.map { case rightField @ StructField(_, rightType, rightNullable, _) =>
-						leftField.copy(
-								dataType = merge(leftType, rightType),
-								nullable = leftNullable || rightNullable)
+						left.fields.foreach { fLeft =>
+						  rightMapped.get(fLeft.name).map { fRight =>
+						    fLeft.copy(
+								  dataType = merge(fLeft.dataType, fRight.dataType),
+								  nullable = fLeft.nullable || fRight.nullable)
 						}
-						.orElse(Some(asNullable(leftField)))
+						.orElse(Some(fLeft.copy(nullable=true)))
 						.foreach(newFields += _)
 				}
 
 				val leftMapped = fieldsMap(left.fields)
 						right.fields
 						.filterNot(f => leftMapped.get(f.name).nonEmpty)
-						.foreach(newFields += asNullable(_))
+						.foreach(newFields += _.copy(nullable=true))
 
 						StructType(newFields)
 		}
-
-    private[iqmulus] def asNullable(field: StructField): StructField =
-      StructField(field.name,field.dataType,true,field.metadata)
     
 		private[iqmulus] def fieldsMap(fields: Array[StructField]): Map[String, StructField] = {
 				import scala.collection.breakOut
