@@ -17,6 +17,7 @@
 package fr.ign.spark
 
 
+
 import org.apache.spark.sql.{ Row, SQLContext, DataFrame }
 
 import org.apache.spark.rdd.UnionRDD
@@ -30,6 +31,8 @@ import org.apache.hadoop.conf.Configuration
 // merge workaround imports
 import org.apache.spark.SparkException
 import scala.collection.mutable.ArrayBuffer
+import org.apache.spark.sql.catalyst.expressions.Cast
+
 
 package object iqmulus {
 
@@ -87,9 +90,46 @@ package object iqmulus {
 				case (leftUdt: UserDefinedType[_], rightUdt: UserDefinedType[_])
 				if leftUdt.userClass == rightUdt.userClass => leftUdt
 
-				case (leftType, rightType) if leftType == rightType =>
-				leftType
+				case (leftType, rightType) if leftType == rightType => leftType
+				
+				case (LongType,IntegerType) => LongType
+				case (LongType,ShortType) => LongType
+				case (LongType,ByteType) => LongType
+				case (IntegerType,LongType) => LongType
+				case (ShortType,LongType) => LongType
+				case (ByteType,LongType) => LongType
 
+				case (IntegerType,ShortType) => IntegerType
+				case (IntegerType,ByteType) => IntegerType
+				case (ShortType,IntegerType) => IntegerType
+				case (ByteType,IntegerType) => IntegerType
+
+				case (ShortType,ByteType) => ShortType
+				case (ByteType,ShortType) => ShortType
+				
+				case (DoubleType,FloatType) => DoubleType
+				case (FloatType,DoubleType) => DoubleType
+
+				case (DoubleType,IntegerType) => DoubleType
+				case (DoubleType,ShortType) => DoubleType
+				case (DoubleType,ByteType) => DoubleType
+				case (IntegerType,DoubleType) => DoubleType
+				case (ShortType,DoubleType) => DoubleType
+				case (ByteType,DoubleType) => DoubleType
+
+				case (FloatType,ShortType) => FloatType
+				case (FloatType,ByteType) => FloatType
+				case (ShortType,FloatType) => FloatType
+				case (ByteType,FloatType) => FloatType
+
+				case (_ : NumericType, _ : NumericType) => 
+				throw new SparkException(s"Failed to merge incompatible numeric data types $left and $right")
+
+				
+				case (leftType, rightType) if Cast.canCast(leftType,rightType) => rightType
+				case (leftType, rightType) if Cast.canCast(rightType,leftType) => leftType
+
+				
 				case _ =>
 				throw new SparkException(s"Failed to merge incompatible data types $left and $right")
 		}

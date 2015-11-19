@@ -25,6 +25,15 @@ import org.apache.spark.rdd.{ NewHadoopPartition, NewHadoopRDD, RDD, UnionRDD }
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.fs.{ FileSystem, FileStatus, Path }
+import org.apache.spark.sql.catalyst.expressions.Cast
+import org.apache.spark.sql.catalyst.expressions.Literal
+import org.apache.spark.sql.catalyst.expressions.Expression
+
+
+class IQmulusCast(child: Expression, dataType: DataType)
+extends Cast(child, dataType) {
+  override def nullSafeEval(input: Any): Any = super.nullSafeEval(input)
+}
 
 case class BinarySection(
 		location: String,
@@ -47,16 +56,30 @@ case class BinarySection(
 	def order = if (littleEndian) ByteOrder.LITTLE_ENDIAN else ByteOrder.BIG_ENDIAN
 	def toBuffer(bytes: BytesWritable): ByteBuffer = ByteBuffer.wrap(bytes.getBytes).order(order)
 
-	def bytesSeq(prop: Seq[(StructField, Int)]): Seq[ByteBuffer => Any] = prop map { case (p, o) => p.get(o) }
+	def bytesSeq(prop: Seq[(DataType,(StructField, Int))]): Seq[ByteBuffer => Any] =
+	  prop map { case (targetType,(sourceField, offset)) =>
+	    sourceField.dataType match {
+	      case sourceType if sourceType==targetType => sourceField.get(offset)
+	      case NullType   => bytes : ByteBuffer => null
+	      case sourceType => bytes : ByteBuffer => {
+          val value = sourceField.get(offset)(bytes)
+	        val cast = new IQmulusCast(Literal(value),targetType)
+          cast.nullSafeEval(value)
+	      }
+	    }
+	}
+	
 
-	def getSeqAux(prop: Seq[(StructField, Int)], gid: Boolean = true)(id: LongWritable, bytes: BytesWritable): Seq[Any] = {
+	def getSeqAux(prop: Seq[(DataType,(StructField, Int))], gid: Boolean = true)(id: LongWritable, bytes: BytesWritable): Seq[Any] = {
 		val seq = (bytesSeq(prop) map (_(toBuffer(bytes))))
 		if (gid) (id.get +: seq) else seq
 	}
 
 	def getSubSeq(dataSchema: StructType, requiredColumns: Array[String]) = {
-  	  val fieldsWithOffsets = dataSchema.fields.tail.map(field => fieldOffsetMap.getOrElse(field.name,(StructField(field.name,NullType,nullable = true),0)))
-      val requiredFieldsWithOffsets = fieldsWithOffsets filter (requiredColumns contains _._1.name)
+  	  val fieldsWithOffsets = dataSchema.fields.tail.map(field => (field.dataType,fieldOffsetMap.getOrElse(field.name,(StructField(field.name,NullType,nullable = true),0))))
+      val requiredFieldsWithOffsets = fieldsWithOffsets filter {
+        case (_, (f, _)) => (requiredColumns contains f.name)
+  	  }
       getSeqAux(requiredFieldsWithOffsets, requiredColumns contains gidName) _
 	}
 }
