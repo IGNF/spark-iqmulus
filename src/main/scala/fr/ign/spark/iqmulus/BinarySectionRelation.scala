@@ -122,8 +122,10 @@ abstract class BinarySectionRelation extends HadoopFsRelation with org.apache.sp
 		if (inputs.isEmpty) {
 			sqlContext.sparkContext.emptyRDD[Row]
 		} else {
-			new UnionRDD[Row](sqlContext.sparkContext,
-					sections.map {section => baseRDD(section,section.getSubSeq(dataSchema,requiredColumns)) })
+		  val requiredFilenames = inputs.map(_.getPath.toString)
+		  val requiredSections  = sections.filter(section => requiredFilenames contains section.location)
+		  new UnionRDD[Row](sqlContext.sparkContext,
+					requiredSections.map {section => baseRDD(section,section.getSubSeq(dataSchema,requiredColumns)) })
 		}
 	}
 	

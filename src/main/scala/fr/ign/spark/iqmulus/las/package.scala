@@ -48,7 +48,7 @@ package object las {
          scale  : Array[Double] = Array(0.01,0.01,0.01), 
          offset : Array[Double] = Array(0,0,0)
        ) = {
-       val dfna = df.drop("id").na.fill(0)
+       val dfna = df.drop("id")//.na.fill(0)
        val fieldSet = dfna.schema.fields.toSet
        val format = formatOpt.getOrElse((LasHeader.schema.indexWhere {schema => fieldSet subsetOf schema.fields.toSet }).toByte)
        if(format == -1) {
@@ -57,8 +57,9 @@ package object las {
        val schema = LasHeader.schema(format) // no user types for now
        val cols   = schema.fieldNames.intersect(df.schema.fieldNames)
        //val conf = df.sqlContext.sparkContext.hadoopConfiguration // issue : not serializable
-       val saver = saveLasRow(schema,format,scale,offset,Array(major,minor),filename(location)) _
-       dfna.select(cols.head, cols.tail :_*).rdd.mapPartitionsWithIndex(saver, true)
+       val saveRow = saveLasRow(schema,format,scale,offset,Array(major,minor),filename(location)) _
+       val saver = (key: Int,iter:Iterator[Row]) => Iterator(saveRow(key,iter))
+       dfna.select(cols.head, cols.tail :_*).rdd.mapPartitionsWithIndex(saver, true).collect
      }
    }
 
@@ -68,7 +69,7 @@ package object las {
        schema : StructType, format : Byte,
        scale : Array[Double], offset : Array[Double], version : Array[Byte],
        filename : (Key => String) )
-     (key : Key, iter : Iterator[Product]) : Iterator[(String,Long)] = {
+     (key : Key, iter : Iterator[Product]) = {
      saveLasRow(schema,format,scale,offset,version,filename)(key,iter.map(Row.fromTuple))
    }
 
@@ -76,7 +77,7 @@ package object las {
        schema : StructType, format : Byte,
        scale : Array[Double], offset : Array[Double], version : Array[Byte],
        filename : (Key => String) )
-     (key : Key, iter : Iterator[Value]) : Iterator[(String,Long)] = {
+     (key : Key, iter : Iterator[Value]) = {
      if(iter.isInstanceOf[Iterator[Product]])
        saveLasProduct(schema,format,scale,offset,version,filename)(key,iter.asInstanceOf[Iterator[Product]])
      else saveLasRow(schema,format,scale,offset,version,filename)(key,iter.map(value => Row.apply(value)))
@@ -114,9 +115,9 @@ package object las {
       val header = new LasHeader(name,format,count,pmin,pmax,scale,offset,version=version,pdr_return_nb=countByReturn)
       val dos = new java.io.DataOutputStream(f);
       header.write(dos)
-      val ros = new RowOutputStream(dos,schema)
+      val ros = new RowOutputStream(dos,littleEndian=true,schema)
       rows.foreach(ros.write)
       dos.close
-      Iterator((name,count))
+      (name,count)
     }  
 }

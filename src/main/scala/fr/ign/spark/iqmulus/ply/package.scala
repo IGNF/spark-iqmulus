@@ -39,13 +39,11 @@ package object ply {
 
   
     implicit class PlyDataFrame(df: DataFrame) {
-     def saveAsPly(
-         location: String
-       ) = {
-       val df2 = df.drop("id").na.fill(0)
+     def saveAsPly(location: String, littleEndian : Boolean = true) = {
+       val df2 = df.drop("id")//.na.fill(0)
        val schema = df2.schema
-       val saver = savePlyRow(schema,filename(location) _) _
-       df2.rdd.mapPartitionsWithIndex(saver, true)
+       val saver = (key: Int,iter:Iterator[Row]) => Iterator(savePlyRow(schema,littleEndian,filename(location) _)(key,iter))
+       df2.rdd.mapPartitionsWithIndex(saver, true).collect
      }
    }
 
@@ -53,37 +51,40 @@ package object ply {
    
    def savePlyProduct[Key](
        schema : StructType,
+       littleEndian : Boolean,
        filename : (Key => String) )
-     (key : Key, iter : Iterator[Product]) : Iterator[(String,Long)] = {
-     savePlyRow(schema,filename)(key,iter.map(Row.fromTuple))
+     (key : Key, iter : Iterator[Product]) = {
+     savePlyRow(schema,littleEndian,filename)(key,iter.map(Row.fromTuple))
    }
 
    def savePly[Key,Value](
        schema : StructType,
+       littleEndian : Boolean,
        filename : (Key => String) )
-     (key : Key, iter : Iterator[Value]) : Iterator[(String,Long)] = {
+     (key : Key, iter : Iterator[Value]) = {
      if(iter.isInstanceOf[Iterator[Product]])
-       savePlyProduct(schema,filename)(key,iter.asInstanceOf[Iterator[Product]])
-     else savePlyRow(schema,filename)(key,iter.map(value => Row.apply(value)))
+       savePlyProduct(schema,littleEndian,filename)(key,iter.asInstanceOf[Iterator[Product]])
+     else savePlyRow(schema,littleEndian,filename)(key,iter.map(value => Row.apply(value)))
    }
    
    def savePlyRow[Key](
        schema : StructType,
+       littleEndian : Boolean,
        filename : (Key => String) )
      (key : Key, iter : Iterator[Row]) = {
       val name = filename(key)
       val path = new org.apache.hadoop.fs.Path(name)
       val fs = path.getFileSystem(new org.apache.hadoop.conf.Configuration)
       val f = fs.create(path)
-      val rows  = iter.toArray
+      val rows = iter.toArray
       val count = rows.size.toLong
-      val header = new PlyHeader(Map("vertex" -> ((count, schema))), false)
+      val header = new PlyHeader(Map("vertex" -> ((count, schema))), littleEndian)
       val dos = new java.io.DataOutputStream(f);
       dos.write(header.toString.getBytes)
-      val ros = new RowOutputStream(dos,schema)
+      val ros = new RowOutputStream(dos,littleEndian,schema)
       rows.foreach(ros.write)
       dos.close
-      Iterator((name,count))
+      (name,count)
     }
    
 }

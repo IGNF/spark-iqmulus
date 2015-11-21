@@ -36,42 +36,42 @@ import org.apache.spark.sql.catalyst.expressions.Cast
 
 package object iqmulus {
 
-	/**
-	 * http://polyglot-window.blogspot.com/2009/03/arm-blocks-in-scala-revisited.html
-	 * http://stackoverflow.com/questions/2207425/what-automatic-resource-management-alternatives-exists-for-scala
-	 */
-	object using {
-		def apply[A <: { def close(): Unit }, B](r: A)(f: A => B): B = try {
-			f(r)
-		} finally {
-			import scala.language.reflectiveCalls
-			r.close()
-		}
-	}
+  /**
+   * http://polyglot-window.blogspot.com/2009/03/arm-blocks-in-scala-revisited.html
+   * http://stackoverflow.com/questions/2207425/what-automatic-resource-management-alternatives-exists-for-scala
+   */
+  object using {
+    def apply[A <: { def close(): Unit }, B](r: A)(f: A => B): B = try {
+      f(r)
+    } finally {
+      import scala.language.reflectiveCalls
+      r.close()
+    }
+  }
 
   
   // adapted from private method in StructType object
   // added nullable=true when a field is present on 1 side only
-	object MergeableStructType {
+  object MergeableStructType {
 
-		private[iqmulus] def merge(left: DataType, right: DataType): DataType =
-				(left, right) match {
-				case (ArrayType(leftElementType, leftContainsNull),
-						ArrayType(rightElementType, rightContainsNull)) =>
-				ArrayType(
-						merge(leftElementType, rightElementType),
-						leftContainsNull || rightContainsNull)
+    private[iqmulus] def merge(left: DataType, right: DataType): DataType =
+        (left, right) match {
+        case (ArrayType(leftElementType, leftContainsNull),
+            ArrayType(rightElementType, rightContainsNull)) =>
+        ArrayType(
+            merge(leftElementType, rightElementType),
+            leftContainsNull || rightContainsNull)
 
-				case (MapType(leftKeyType, leftValueType, leftContainsNull),
-						MapType(rightKeyType, rightValueType, rightContainsNull)) =>
-				MapType(
-						merge(leftKeyType, rightKeyType),
-						merge(leftValueType, rightValueType),
-						leftContainsNull || rightContainsNull)
+        case (MapType(leftKeyType, leftValueType, leftContainsNull),
+            MapType(rightKeyType, rightValueType, rightContainsNull)) =>
+        MapType(
+            merge(leftKeyType, rightKeyType),
+            merge(leftValueType, rightValueType),
+            leftContainsNull || rightContainsNull)
 
-				case (leftStruct : StructType, rightStruct : StructType) =>
-				merge(leftStruct,rightStruct)
-				/* // commented out because DecimalType.Fixed is private
+        case (leftStruct : StructType, rightStruct : StructType) =>
+        merge(leftStruct,rightStruct)
+        /* // commented out because DecimalType.Fixed is private
       case (DecimalType.Fixed(leftPrecision, leftScale),
         DecimalType.Fixed(rightPrecision, rightScale)) =>
         if ((leftPrecision == rightPrecision) && (leftScale == rightScale)) {
@@ -86,85 +86,85 @@ package object iqmulus {
           throw new SparkException("Failed to merge Decimal Tpes with incompatible " +
             s"scala $leftScale and $rightScale")
         }
-				 */
-				case (leftUdt: UserDefinedType[_], rightUdt: UserDefinedType[_])
-				if leftUdt.userClass == rightUdt.userClass => leftUdt
+         */
+        case (leftUdt: UserDefinedType[_], rightUdt: UserDefinedType[_])
+        if leftUdt.userClass == rightUdt.userClass => leftUdt
 
-				case (leftType, rightType) if leftType == rightType => leftType
-				
-				case (LongType,IntegerType) => LongType
-				case (LongType,ShortType) => LongType
-				case (LongType,ByteType) => LongType
-				case (IntegerType,LongType) => LongType
-				case (ShortType,LongType) => LongType
-				case (ByteType,LongType) => LongType
+        case (leftType, rightType) if leftType == rightType => leftType
+        
+        case (LongType,IntegerType) => LongType
+        case (LongType,ShortType) => LongType
+        case (LongType,ByteType) => LongType
+        case (IntegerType,LongType) => LongType
+        case (ShortType,LongType) => LongType
+        case (ByteType,LongType) => LongType
 
-				case (IntegerType,ShortType) => IntegerType
-				case (IntegerType,ByteType) => IntegerType
-				case (ShortType,IntegerType) => IntegerType
-				case (ByteType,IntegerType) => IntegerType
+        case (IntegerType,ShortType) => IntegerType
+        case (IntegerType,ByteType) => IntegerType
+        case (ShortType,IntegerType) => IntegerType
+        case (ByteType,IntegerType) => IntegerType
 
-				case (ShortType,ByteType) => ShortType
-				case (ByteType,ShortType) => ShortType
-				
-				case (DoubleType,FloatType) => DoubleType
-				case (FloatType,DoubleType) => DoubleType
+        case (ShortType,ByteType) => ShortType
+        case (ByteType,ShortType) => ShortType
+        
+        case (DoubleType,FloatType) => DoubleType
+        case (FloatType,DoubleType) => DoubleType
 
-				case (DoubleType,IntegerType) => DoubleType
-				case (DoubleType,ShortType) => DoubleType
-				case (DoubleType,ByteType) => DoubleType
-				case (IntegerType,DoubleType) => DoubleType
-				case (ShortType,DoubleType) => DoubleType
-				case (ByteType,DoubleType) => DoubleType
+        case (DoubleType,IntegerType) => DoubleType
+        case (DoubleType,ShortType) => DoubleType
+        case (DoubleType,ByteType) => DoubleType
+        case (IntegerType,DoubleType) => DoubleType
+        case (ShortType,DoubleType) => DoubleType
+        case (ByteType,DoubleType) => DoubleType
 
-				case (FloatType,ShortType) => FloatType
-				case (FloatType,ByteType) => FloatType
-				case (ShortType,FloatType) => FloatType
-				case (ByteType,FloatType) => FloatType
+        case (FloatType,ShortType) => FloatType
+        case (FloatType,ByteType) => FloatType
+        case (ShortType,FloatType) => FloatType
+        case (ByteType,FloatType) => FloatType
 
-				case (_ : NumericType, _ : NumericType) => 
-				throw new SparkException(s"Failed to merge incompatible numeric data types $left and $right")
+        case (_ : NumericType, _ : NumericType) => 
+        throw new SparkException(s"Failed to merge incompatible numeric data types $left and $right")
 
-				
-				case (leftType, rightType) if Cast.canCast(leftType,rightType) => rightType
-				case (leftType, rightType) if Cast.canCast(rightType,leftType) => leftType
+        
+        case (leftType, rightType) if Cast.canCast(leftType,rightType) => rightType
+        case (leftType, rightType) if Cast.canCast(rightType,leftType) => leftType
 
-				
-				case _ =>
-				throw new SparkException(s"Failed to merge incompatible data types $left and $right")
-		}
+        
+        case _ =>
+        throw new SparkException(s"Failed to merge incompatible data types $left and $right")
+    }
 
-		// todo : metadata handling !
-		private[iqmulus] def merge(left: StructType, right: StructType): StructType = {
-				val newFields = ArrayBuffer.empty[StructField]
+    // todo : metadata handling !
+    private[iqmulus] def merge(left: StructType, right: StructType): StructType = {
+        val newFields = ArrayBuffer.empty[StructField]
 
-						val rightMapped = fieldsMap(right.fields)
-						left.fields.foreach { fLeft =>
-						  rightMapped.get(fLeft.name).map { fRight =>
-						    fLeft.copy(
-								  dataType = merge(fLeft.dataType, fRight.dataType),
-								  nullable = fLeft.nullable || fRight.nullable)
-						}
-						.orElse(Some(fLeft.copy(nullable=true)))
-						.foreach(newFields += _)
-				}
+            val rightMapped = fieldsMap(right.fields)
+            left.fields.foreach { fLeft =>
+              rightMapped.get(fLeft.name).map { fRight =>
+                fLeft.copy(
+                  dataType = merge(fLeft.dataType, fRight.dataType),
+                  nullable = fLeft.nullable || fRight.nullable)
+            }
+            .orElse(Some(fLeft.copy(nullable=true)))
+            .foreach(newFields += _)
+        }
 
-				val leftMapped = fieldsMap(left.fields)
-						right.fields
-						.filterNot(f => leftMapped.get(f.name).nonEmpty)
-						.foreach(newFields += _.copy(nullable=true))
+        val leftMapped = fieldsMap(left.fields)
+            right.fields
+            .filterNot(f => leftMapped.get(f.name).nonEmpty)
+            .foreach(newFields += _.copy(nullable=true))
 
-						StructType(newFields)
-		}
+            StructType(newFields)
+    }
     
-		private[iqmulus] def fieldsMap(fields: Array[StructField]): Map[String, StructField] = {
-				import scala.collection.breakOut
-				fields.map(s => (s.name, s))(breakOut)
-		}
-	}
-	implicit class MergeableStructType(left: StructType) {
-		def merge(right: StructType): StructType = MergeableStructType.merge(left,right)
-				/*
+    private[iqmulus] def fieldsMap(fields: Array[StructField]): Map[String, StructField] = {
+        import scala.collection.breakOut
+        fields.map(s => (s.name, s))(breakOut)
+    }
+  }
+  implicit class MergeableStructType(left: StructType) {
+    def merge(right: StructType): StructType = MergeableStructType.merge(left,right)
+        /*
     // access private[sql] method : https://gist.github.com/jorgeortiz85/908035
     def merge(right: StructType): StructType = {
       val method = StructType.getClass.getDeclaredMethods.find(_.getName == "merge").get
@@ -172,40 +172,42 @@ package object iqmulus {
       method.invoke(left, right).asInstanceOf[StructType]
       //left merge right
     }
-				 */
-	}
+         */
+  }
 
-	implicit class StructFieldWithGet(field: StructField) {
-		def get(offset: Int): (ByteBuffer => Any) = field.dataType match {
-		case ByteType => b => b get offset
-		case ShortType => b => b getShort offset
-		case IntegerType => b => b getInt offset
-		case LongType => b => b getLong offset
-		case FloatType => b => b getFloat offset
-		case DoubleType => b => b getDouble offset
-		case NullType => b => null
-		case other => sys.error(s"Unsupported type $other")
-		}
-	}
-	
-	case class RowOutputStream(dos: DataOutputStream, schema: StructType) {
-  	    val bytes  = Array.fill[Byte](schema.map(_.dataType.defaultSize).sum)(0);
-        val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+  implicit class StructFieldWithGet(field: StructField) {
+    def get(offset: Int): (ByteBuffer => Any) = field.dataType match {
+    case ByteType => b => b get offset
+    case ShortType => b => b getShort offset
+    case IntegerType => b => b getInt offset
+    case LongType => b => b getLong offset
+    case FloatType => b => b getFloat offset
+    case DoubleType => b => b getDouble offset
+    case NullType => b => null
+    case other => sys.error(s"Unsupported type $other")
+    }
+  }
+  
+  case class RowOutputStream(dos: DataOutputStream, littleEndian: Boolean, schema: StructType) {
+    def order = if(littleEndian) ByteOrder.LITTLE_ENDIAN else ByteOrder.BIG_ENDIAN
+    val bytes  = Array.fill[Byte](schema.map(_.dataType.defaultSize).sum)(0);
+    val buffer = ByteBuffer.wrap(bytes).order(order)
         
-		def write(row: Row) = {
+    def write(row: Row) = {
+          buffer.position(0)
           schema.fields.map{f => (f.dataType,row.schema.fields.indexWhere(_.name == f.name))} .foreach { 
-			case (_,-1) => ()
-			case (ByteType,i) => buffer put (row.getByte(i))
-			case (ShortType,i) => buffer putShort (row.getShort(i))
-			case (IntegerType,i) => buffer putInt (row.getInt(i))
-			case (LongType,i) => buffer putLong (row.getLong(i))
-			case (FloatType,i) => buffer putFloat (row.getFloat(i))
-			case (DoubleType,i) => buffer putDouble (row.getDouble(i))
-			case (NullType,_) => ()
-			case (other,_) => sys.error(s"Unsupported type $other")
+      case (_,-1) => ()
+      case (ByteType,i) => buffer put (row.getByte(i))
+      case (ShortType,i) => buffer putShort (row.getShort(i))
+      case (IntegerType,i) => buffer putInt (row.getInt(i))
+      case (LongType,i) => buffer putLong (row.getLong(i))
+      case (FloatType,i) => buffer putFloat (row.getFloat(i))
+      case (DoubleType,i) => buffer putDouble (row.getDouble(i))
+      case (NullType,_) => ()
+      case (other,_) => sys.error(s"Unsupported type $other")
            }
           dos write bytes
-		}
-	}
+    }
+  }
 }
 

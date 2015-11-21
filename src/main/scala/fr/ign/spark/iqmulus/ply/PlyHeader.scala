@@ -79,7 +79,7 @@ case class PlyHeader(
 		comments: Seq[String]) {
 
 	override def toString =
-			"Ply\n" +
+			"ply\n" +
 					"format binary_" + (if (littleEndian) "little" else "big") +
 					"_endian 1.0\n" +
 					comments.map (_+"\n").mkString +

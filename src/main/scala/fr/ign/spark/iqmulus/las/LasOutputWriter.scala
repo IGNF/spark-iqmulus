@@ -103,7 +103,7 @@ class LasOutputWriter(name: String, dataSchema: StructType, context: TaskAttempt
     dos
   }
   
-  private val recordWriter = new RowOutputStream(headerWriter,dataSchema)
+  private val recordWriter = new RowOutputStream(headerWriter,littleEndian=true,dataSchema)
   
   override def write(row: Row): Unit = { 
     print(".")
