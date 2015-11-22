@@ -17,14 +17,15 @@
 package fr.ign.spark.iqmulus.las
 
 import org.apache.hadoop.mapreduce.TaskAttemptContext
-import org.apache.spark.sql.sources.{OutputWriter, OutputWriterFactory}
+import org.apache.spark.sql.sources.{ OutputWriter, OutputWriterFactory }
 import org.apache.spark.sql.types.StructType
-
 
 private[las] class LasOutputWriterFactory(schema: StructType) extends OutputWriterFactory {
 
-  override def newInstance(path: String,
-      dataSchema: StructType,
-      context: TaskAttemptContext): OutputWriter =
+  override def newInstance(
+    path: String,
+    dataSchema: StructType,
+    context: TaskAttemptContext
+  ): OutputWriter =
     new LasOutputWriter(path, schema, context)
 }

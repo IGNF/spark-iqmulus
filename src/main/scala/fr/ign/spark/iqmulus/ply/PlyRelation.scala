@@ -16,22 +16,28 @@
 
 package fr.ign.spark.iqmulus.ply
 
-import fr.ign.spark.iqmulus.{ BinarySectionRelation, BinarySection, using }
+import fr.ign.spark.iqmulus.{ BinarySectionRelation, BinarySection }
 import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.spark.sql.SQLContext
 
 class PlyRelation(
-		override val paths: Array[String], 
-		element: String = "vertex")
-		(@transient val sqlContext: SQLContext) extends BinarySectionRelation {
+    override val paths: Array[String],
+    element: String = "vertex"
+)(@transient val sqlContext: SQLContext) extends BinarySectionRelation {
 
-	lazy val headers: Array[PlyHeader] = paths flatMap { location => 
-		val path = new Path(location)
-		val fs = FileSystem.get(path.toUri, sqlContext.sparkContext.hadoopConfiguration)
-		try using(fs.open(path)) { dis => PlyHeader.read(location,dis) }
-		catch { case _ : java.io.FileNotFoundException => logWarning(s"File not found : $location, skipping"); None }
-	}
-	
+  lazy val headers: Array[PlyHeader] = paths flatMap { location =>
+    val path = new Path(location)
+    val fs = FileSystem.get(path.toUri, sqlContext.sparkContext.hadoopConfiguration)
+    try {
+      val dis = fs.open(path)
+      try PlyHeader.read(location, dis)
+      finally dis.close
+    } catch {
+      case _: java.io.FileNotFoundException =>
+        logWarning(s"File not found : $location, skipping"); None
+    }
+  }
+
   override def sections: Array[BinarySection] =
     headers.flatMap(_.section.get(element))
 }

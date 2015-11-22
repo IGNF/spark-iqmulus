@@ -17,16 +17,17 @@
 package fr.ign.spark.iqmulus.ply
 
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.sources.{ BaseRelation, RelationProvider,HadoopFsRelation, HadoopFsRelationProvider}
+import org.apache.spark.sql.sources.{ HadoopFsRelation, HadoopFsRelationProvider }
 import org.apache.spark.sql.types.StructType
 
 class DefaultSource extends HadoopFsRelationProvider {
   override def createRelation(
-      sqlContext: SQLContext,
-      paths: Array[String],
-      dataSchema: Option[StructType],
-      partitionColumns: Option[StructType],
-      parameters: Map[String, String]): HadoopFsRelation = {
-    new PlyRelation(paths, parameters.getOrElse("element", "vertex"))(sqlContext)    
+    sqlContext: SQLContext,
+    paths: Array[String],
+    dataSchema: Option[StructType],
+    partitionColumns: Option[StructType],
+    parameters: Map[String, String]
+  ): HadoopFsRelation = {
+    new PlyRelation(paths, parameters.getOrElse("element", "vertex"))(sqlContext)
   }
 }

@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-
 package fr.ign.spark.iqmulus
 
 import _root_.java.io.IOException
 import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import org.apache.hadoop.io.{BytesWritable, LongWritable}
-import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext}
+import org.apache.hadoop.io.{ BytesWritable, LongWritable }
+import org.apache.hadoop.mapreduce.{ InputSplit, RecordReader, TaskAttemptContext }
 import org.apache.hadoop.mapreduce.lib.input.FileSplit
 import org.apache.spark.deploy.SparkHadoopUtil
 
@@ -36,22 +35,22 @@ import org.apache.spark.deploy.SparkHadoopUtil
  * value = the record itself (BytesWritable)
  */
 private[iqmulus] class FixedLengthBinarySectionRecordReader
-  extends RecordReader[LongWritable, BytesWritable] {
+    extends RecordReader[LongWritable, BytesWritable] {
 
   private var splitStart: Long = 0L
   private var splitEnd: Long = 0L
   private var currentPosition: Long = 0L
   private var recordOffset: Long = 0L
-  private var recordCount : Long = 0L
+  private var recordCount: Long = 0L
   private var recordLength: Int = 0
   private var recordStride: Int = 0
   private var fileInputStream: FSDataInputStream = null
   private var recordKey: LongWritable = null
   private var recordValue: BytesWritable = null
 
-  override def close : Unit = if (fileInputStream != null) fileInputStream.close
-  override def getCurrentKey   : LongWritable  = recordKey
-  override def getCurrentValue : BytesWritable = recordValue
+  override def close: Unit = if (fileInputStream != null) fileInputStream.close
+  override def getCurrentKey: LongWritable = recordKey
+  override def getCurrentValue: BytesWritable = recordValue
 
   override def getProgress: Float = {
     splitStart match {
@@ -81,16 +80,16 @@ private[iqmulus] class FixedLengthBinarySectionRecordReader
     recordStride = FixedLengthBinarySectionInputFormat.getRecordStride(context)
     // get the record offset
     recordOffset = FixedLengthBinarySectionInputFormat.getRecordOffset(context)
-    recordCount  = FixedLengthBinarySectionInputFormat.getRecordCount (context)
-    
+    recordCount = FixedLengthBinarySectionInputFormat.getRecordCount(context)
+
     // the byte position this fileSplit starts at
     splitStart = Math.max(fileSplit.getStart, recordOffset)
-    splitStart = recordOffset + (Math.floor((splitStart-recordOffset) / recordStride) * recordStride).toLong
+    splitStart = recordOffset + (((splitStart - recordOffset) / recordStride) * recordStride).toLong
     // splitEnd byte marker that the fileSplit ends at
-    splitEnd = Math.min(fileSplit.getStart + fileSplit.getLength, recordOffset+recordCount*recordStride)
-    splitEnd = recordOffset + (Math.floor((splitEnd-recordOffset) / recordStride) * recordStride).toLong
+    splitEnd = recordOffset + recordCount * recordStride
+    splitEnd = Math.min(fileSplit.getStart + fileSplit.getLength, splitEnd)
+    splitEnd = recordOffset + (((splitEnd - recordOffset) / recordStride) * recordStride).toLong
 
-    
     // get the filesystem
     val fs = file.getFileSystem(job)
     // open the File
@@ -107,7 +106,7 @@ private[iqmulus] class FixedLengthBinarySectionRecordReader
     }
     // the key is a linear index of the record, given by the
     // position the record starts divided by the record length
-    recordKey.set((currentPosition - recordOffset)/ recordStride)
+    recordKey.set((currentPosition - recordOffset) / recordStride)
     // the recordValue to place the bytes into
     if (recordValue == null) {
       recordValue = new BytesWritable(new Array[Byte](recordLength))
@@ -117,10 +116,10 @@ private[iqmulus] class FixedLengthBinarySectionRecordReader
       // setup a buffer to store the record
       val buffer = recordValue.getBytes
       fileInputStream.readFully(buffer)
-      if(recordStride>recordLength) fileInputStream.skip(recordStride-recordLength)
+      if (recordStride > recordLength) fileInputStream.skip(recordStride - recordLength)
       // update our current position
       currentPosition = currentPosition + recordStride
-      
+
       return true
     }
     false

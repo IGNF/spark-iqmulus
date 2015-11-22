@@ -37,6 +37,8 @@ spAppendScalaVersion := true
 
 spIncludeMaven := true
 
+licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))
+
 publishTo := {
   val nexus = "https://oss.sonatype.org/"
   if (version.value.endsWith("SNAPSHOT"))

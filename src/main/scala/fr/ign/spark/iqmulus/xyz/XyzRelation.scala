@@ -26,45 +26,43 @@ import org.apache.hadoop.fs.FileStatus
 object XyzRelation {
 
   val xyzrgbSchema = StructType(Array(
-        StructField("x",FloatType,false),
-        StructField("y",FloatType,false),
-        StructField("z",FloatType,false),
-        StructField("r",ByteType,false),
-        StructField("g",ByteType,false),
-        StructField("b",ByteType,false)
+    StructField("x", FloatType, false),
+    StructField("y", FloatType, false),
+    StructField("z", FloatType, false),
+    StructField("r", ByteType, false),
+    StructField("g", ByteType, false),
+    StructField("b", ByteType, false)
   ))
-  
+
   val xyzSchema = StructType(Array(
-        StructField("x",FloatType,false),
-        StructField("y",FloatType,false),
-        StructField("z",FloatType,false)
+    StructField("x", FloatType, false),
+    StructField("y", FloatType, false),
+    StructField("z", FloatType, false)
   ))
-  
+
 }
 
+class XyzRelation(override val paths: Array[String], val dataSchemaOpt: Option[StructType])(@transient val sqlContext: SQLContext)
+    extends HadoopFsRelation with org.apache.spark.Logging {
 
-class XyzRelation (override val paths: Array[String], val dataSchemaOpt : Option[StructType])
-		(@transient val sqlContext: SQLContext)
-		extends HadoopFsRelation with org.apache.spark.Logging {
-  
   override lazy val dataSchema = dataSchemaOpt.getOrElse(XyzRelation.xyzrgbSchema)
-    
-	override def prepareJobForWrite(job: org.apache.hadoop.mapreduce.Job): org.apache.spark.sql.sources.OutputWriterFactory = ???
 
-	override def buildScan(inputs: Array[FileStatus]): RDD[Row] = {
-	  val lines = sqlContext.sparkContext.textFile(inputs.map(_.getPath).mkString("",",",""))
-	  val dataTypes = dataSchema.fields.map(_.dataType)
-	  lines map (line => Row.fromSeq((line.split("\t") zip dataTypes).map{
-	    case (x,StringType)  => x
-	    case (x,ByteType)    => x.toByte
-	    case (x,ShortType)   => x.toShort
-	    case (x,IntegerType) => x.toInt
-	    case (x,LongType)    => x.toLong
-	    case (x,FloatType)   => x.toFloat
-	    case (x,DoubleType)  => x.toDouble
-	    case _               => null
-	  }.padTo(dataTypes.size,null)))
-	}
-	
+  override def prepareJobForWrite(job: org.apache.hadoop.mapreduce.Job): org.apache.spark.sql.sources.OutputWriterFactory = ???
+
+  override def buildScan(inputs: Array[FileStatus]): RDD[Row] = {
+    val lines = sqlContext.sparkContext.textFile(inputs.map(_.getPath).mkString("", ",", ""))
+    val dataTypes = dataSchema.fields.map(_.dataType)
+    lines map (line => Row.fromSeq((line.split("\t") zip dataTypes).map {
+      case (x, StringType) => x
+      case (x, ByteType) => x.toByte
+      case (x, ShortType) => x.toShort
+      case (x, IntegerType) => x.toInt
+      case (x, LongType) => x.toLong
+      case (x, FloatType) => x.toFloat
+      case (x, DoubleType) => x.toDouble
+      case _ => null
+    }.padTo(dataTypes.size, null)))
+  }
+
 }
 

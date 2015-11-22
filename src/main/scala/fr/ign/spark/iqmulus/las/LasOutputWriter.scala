@@ -32,15 +32,15 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.sources.OutputWriter
 */
 import org.apache.spark.sql.types._
-import org.apache.hadoop.mapreduce.{TaskAttemptID, RecordWriter, TaskAttemptContext}
+import org.apache.hadoop.mapreduce.{ TaskAttemptID, RecordWriter, TaskAttemptContext }
 import java.io.DataOutputStream
 import org.apache.spark.sql.sources.OutputWriter
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.hadoop.io.{NullWritable, BytesWritable}
+import org.apache.hadoop.io.{ NullWritable, BytesWritable }
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat
 import org.apache.hadoop.fs.Path
 import java.text.NumberFormat
-import org.apache.spark.sql.{Row, SQLContext, sources}
+import org.apache.spark.sql.{ Row, SQLContext, sources }
 import fr.ign.spark.iqmulus.RowOutputStream
 
 /*
@@ -76,54 +76,51 @@ class LasOutputWriter(path: String, dataSchema: StructType, context: TaskAttempt
 }
 */
 
-
 class LasOutputWriter(name: String, dataSchema: StructType, context: TaskAttemptContext)
-  extends OutputWriter {
-  
+    extends OutputWriter {
+
   private val file = {
     println("file")
     val path = new Path(name)
     path.getFileSystem(context.getConfiguration).create(path)
   }
-  
+
   private var count = 0
-  
+
   private def header = {
     println("header")
     val format = 0.toByte
     val schema = LasHeader.schema(format)
-    val cols   = schema.fieldNames.intersect(dataSchema.fieldNames)
-    new LasHeader(name,format,count)
+    val cols = schema.fieldNames.intersect(dataSchema.fieldNames)
+    new LasHeader(name, format, count)
   }
-  
-  def headerWriter =  {
+
+  def headerWriter = {
     println("headerWriter")
     val dos = new DataOutputStream(file)
     header.write(dos)
     dos
   }
-  
-  private val recordWriter = new RowOutputStream(headerWriter,littleEndian=true,dataSchema)
-  
-  override def write(row: Row): Unit = { 
+
+  private val recordWriter = new RowOutputStream(headerWriter, littleEndian = true, dataSchema)
+
+  override def write(row: Row): Unit = {
     print(".")
     count += 1
     recordWriter.write(row)
   }
 
-  override def close(): Unit = {  
-    println("close")  
+  override def close(): Unit = {
+    println("close")
     recordWriter.dos.close
     headerWriter.close
   }
 }
 
-
-
-
 /*
 // NOTE: This class is instantiated and used on executor side only, no need to be serializable.
-private[las] class LasOutputWriter(path: String, dataSchema: StructType, context: TaskAttemptContext) 
+private[las] class LasOutputWriter(
+  path: String, dataSchema: StructType, context: TaskAttemptContext) 
   extends OutputWriter {
   
   /**
@@ -196,11 +193,13 @@ package object las {
 
   implicit class LASDataFrame(df: DataFrame) {
     val defaultAliases : Map[String,String] = Map[String,String]()
-    def saveAsLasFile(location: String, format : Byte, aliases : Map[String,String] = defaultAliases) = {
+    def saveAsLasFile(location: String, format : Byte,
+      aliases : Map[String,String] = defaultAliases) = {
       val names = aliases
       val schema = LASHeader.schema(format) // no user types for now
       val cols   = schema.fieldNames.intersect(df.schema.fieldNames)
-      val partitionSize = df.rdd.mapPartitionsWithIndex { case (pid, iter) => Iterator((pid, iter.size)) }.collect.toMap
+      val partitionSize = df.rdd.mapPartitionsWithIndex { case (pid, iter) =>
+        Iterator((pid, iter.size)) }.collect.toMap
       df.select(cols.head, cols.tail :_*).rdd.mapPartitionsWithIndex({
         case (pid, iter) =>
           val name = s"$location/$pid.las"

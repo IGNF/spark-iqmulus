@@ -16,7 +16,7 @@
 
 package fr.ign.spark.iqmulus
 
-import org.apache.spark.sql.{SQLContext, DataFrameReader, DataFrameWriter, DataFrame, Row}
+import org.apache.spark.sql.{ SQLContext, DataFrameReader, DataFrameWriter, DataFrame, Row }
 import org.apache.spark.sql.types.StructType
 
 package object ply {
@@ -37,22 +37,22 @@ package object ply {
     def ply: String => DataFrame = reader.format("fr.ign.spark.iqmulus.ply").load
   }
 
-  
-    implicit class PlyDataFrame(df: DataFrame) {
-     def saveAsPly(location: String, littleEndian : Boolean = true) = {
-       val df2 = df.drop("id")//.na.fill(0)
-       val schema = df2.schema
-       val saver = (key: Int,iter:Iterator[Row]) => 
-         Iterator(iter.saveAsPly(s"$location/$key.ply",schema,littleEndian))
-       df2.rdd.mapPartitionsWithIndex(saver, true).collect
-     }
-   }
+  implicit class PlyDataFrame(df: DataFrame) {
+    def saveAsPly(location: String, littleEndian: Boolean = true) = {
+      val df2 = df.drop("id")
+      val schema = df2.schema
+      val saver = (key: Int, iter: Iterator[Row]) =>
+        Iterator(iter.saveAsPly(s"$location/$key.ply", schema, littleEndian))
+      df2.rdd.mapPartitionsWithIndex(saver, true).collect
+    }
+  }
 
   implicit class PlyRowIterator(iter: Iterator[Row]) {
     def saveAsPly(
-       filename : String,
-       schema : StructType,
-       littleEndian : Boolean) = {
+      filename: String,
+      schema: StructType,
+      littleEndian: Boolean
+    ) = {
       val path = new org.apache.hadoop.fs.Path(filename)
       val fs = path.getFileSystem(new org.apache.hadoop.conf.Configuration)
       val f = fs.create(path)
@@ -61,10 +61,10 @@ package object ply {
       val header = new PlyHeader(Map("vertex" -> ((count, schema))), littleEndian)
       val dos = new java.io.DataOutputStream(f);
       dos.write(header.toString.getBytes)
-      val ros = new RowOutputStream(dos,littleEndian,schema)
+      val ros = new RowOutputStream(dos, littleEndian, schema)
       rows.foreach(ros.write)
       dos.close
-      (filename,count)
+      (filename, count)
     }
   }
 }

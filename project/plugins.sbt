@@ -8,7 +8,8 @@ addSbtPlugin("org.spark-packages" % "sbt-spark-package" % "0.2.2")
 
 addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.7.5")
 
-addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "0.7.0" excludeAll(
-  ExclusionRule(organization = "com.danieltrinh")))
+addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "0.7.0")
 
 addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.1.0")
+
+addSbtPlugin("org.scalariform" % "sbt-scalariform" % "1.5.1")

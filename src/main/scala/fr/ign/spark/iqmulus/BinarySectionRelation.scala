@@ -16,7 +16,7 @@
 
 package fr.ign.spark.iqmulus
 
-import java.nio.{ByteBuffer, ByteOrder}
+import java.nio.{ ByteBuffer, ByteOrder }
 import org.apache.hadoop.io._
 import org.apache.spark.sql.{ Row, SQLContext }
 import org.apache.spark.sql.sources.HadoopFsRelation
@@ -31,57 +31,63 @@ import org.apache.spark.sql.catalyst.expressions.Expression
 
 // workaround the protected Cast nullSafeEval to make it public
 class IQmulusCast(child: Expression, dataType: DataType)
-extends Cast(child, dataType) {
+    extends Cast(child, dataType) {
   override def nullSafeEval(input: Any): Any = super.nullSafeEval(input)
 }
 
 case class BinarySection(
-		location: String,
-		var offset: Long,
-		count: Long,
-		littleEndian: Boolean,
-		private val _schema: StructType,
-		private val _stride: Int = 0,
-		idName: String = "id") {
+    location: String,
+    var offset: Long,
+    count: Long,
+    littleEndian: Boolean,
+    private val _schema: StructType,
+    private val _stride: Int = 0,
+    idName: String = "id"
+) {
 
-	val sizes = _schema.fields.map(_.dataType.defaultSize)
-	val offsets = sizes.scanLeft(0)(_ + _)
-	val length = offsets.last
-	val stride = if (_stride > 0) _stride else length
-	def size: Long = stride * count
-	val schema = StructType(StructField(idName, LongType, false) +: _schema.fields)
-      
-    val fieldOffsetMap : Map[String,(StructField,Int)]= (schema.fields.tail zip offsets) map (x => (x._1.name,x)) toMap
+  val sizes = _schema.fields.map(_.dataType.defaultSize)
+  val offsets = sizes.scanLeft(0)(_ + _)
+  val length = offsets.last
+  val stride = if (_stride > 0) _stride else length
+  def size: Long = stride * count
+  val schema = StructType(StructField(idName, LongType, false) +: _schema.fields)
 
-	def order = if (littleEndian) ByteOrder.LITTLE_ENDIAN else ByteOrder.BIG_ENDIAN
-	def toBuffer(bytes: BytesWritable): ByteBuffer = ByteBuffer.wrap(bytes.getBytes).order(order)
+  val fieldOffsetMap: Map[String, (StructField, Int)] =
+    (schema.fields.tail zip offsets) map (x => (x._1.name, x)) toMap
 
-	def bytesSeq(prop: Seq[(DataType,(StructField, Int))]): Seq[ByteBuffer => Any] =
-	  prop map { case (targetType,(sourceField, offset)) =>
-	    sourceField.dataType match {
-	      case sourceType if sourceType==targetType => sourceField.get(offset)
-	      case NullType   => bytes : ByteBuffer => null
-	      case sourceType => bytes : ByteBuffer => {
-          val value = sourceField.get(offset)(bytes)
-	        val cast = new IQmulusCast(Literal(value),targetType)
-          cast.nullSafeEval(value)
-	      }
-	    }
-	}
-	
+  def order = if (littleEndian) ByteOrder.LITTLE_ENDIAN else ByteOrder.BIG_ENDIAN
+  def toBuffer(bytes: BytesWritable): ByteBuffer = ByteBuffer.wrap(bytes.getBytes).order(order)
 
-	def getSeqAux(prop: Seq[(DataType,(StructField, Int))], id: Boolean = true)(key: LongWritable, bytes: BytesWritable): Seq[Any] = {
-		val seq = (bytesSeq(prop) map (_(toBuffer(bytes))))
-		if (id) (key.get +: seq) else seq
-	}
+  def bytesSeq(prop: Seq[(DataType, (StructField, Int))]): Seq[ByteBuffer => Any] =
+    prop map {
+      case (targetType, (sourceField, offset)) =>
+        sourceField.dataType match {
+          case sourceType if sourceType == targetType => sourceField.get(offset)
+          case NullType => bytes: ByteBuffer => null
+          case sourceType => bytes: ByteBuffer => {
+            val value = sourceField.get(offset)(bytes)
+            val cast = new IQmulusCast(Literal(value), targetType)
+            cast.nullSafeEval(value)
+          }
+        }
+    }
 
-	def getSubSeq(dataSchema: StructType, requiredColumns: Array[String]) = {
-  	  val fieldsWithOffsets = dataSchema.fields.tail.map(field => (field.dataType,fieldOffsetMap.getOrElse(field.name,(StructField(field.name,NullType,nullable = true),0))))
-      val requiredFieldsWithOffsets = fieldsWithOffsets filter {
-        case (_, (f, _)) => (requiredColumns contains f.name)
-  	  }
-      getSeqAux(requiredFieldsWithOffsets, requiredColumns contains idName) _
-	}
+  def getSeqAux(prop: Seq[(DataType, (StructField, Int))], id: Boolean = true)(key: LongWritable, bytes: BytesWritable): Seq[Any] =
+    {
+      val seq = (bytesSeq(prop) map (_(toBuffer(bytes))))
+      if (id) (key.get +: seq) else seq
+    }
+
+  def getSubSeq(dataSchema: StructType, requiredColumns: Array[String]) = {
+    val fieldsWithOffsets = dataSchema.fields.tail.map(field => (
+      field.dataType,
+      fieldOffsetMap.getOrElse(field.name, (StructField(field.name, NullType, nullable = true), 0))
+    ))
+    val requiredFieldsWithOffsets = fieldsWithOffsets filter {
+      case (_, (f, _)) => (requiredColumns contains f.name)
+    }
+    getSeqAux(requiredFieldsWithOffsets, requiredColumns contains idName) _
+  }
 }
 
 /**
@@ -90,46 +96,47 @@ case class BinarySection(
  */
 abstract class BinarySectionRelation extends HadoopFsRelation with org.apache.spark.Logging {
 
-	def sections: Array[BinarySection]
+  def sections: Array[BinarySection]
 
-	/**
-	 * Determine the RDD Schema based on the se header info.
-	 * @return StructType instance
-	 */
-	override lazy val dataSchema: StructType =
-	  if (sections.isEmpty) StructType(Nil) else  sections.map(_.schema).reduce(_ merge _)
+  /**
+   * Determine the RDD Schema based on the se header info.
+   * @return StructType instance
+   */
+  override lazy val dataSchema: StructType =
+    if (sections.isEmpty) StructType(Nil) else sections.map(_.schema).reduce(_ merge _)
 
-	override def prepareJobForWrite(job: org.apache.hadoop.mapreduce.Job): org.apache.spark.sql.sources.OutputWriterFactory = ???
+  override def prepareJobForWrite(job: org.apache.hadoop.mapreduce.Job): org.apache.spark.sql.sources.OutputWriterFactory = ???
 
-	private[iqmulus] def baseRDD(section : BinarySection, toSeq: ((LongWritable, BytesWritable) => Seq[Any])): RDD[Row] = {
-		val conf = sqlContext.sparkContext.hadoopConfiguration
-				conf.set(FixedLengthBinarySectionInputFormat.RECORD_OFFSET_PROPERTY, section.offset.toString)
-				conf.set(FixedLengthBinarySectionInputFormat.RECORD_COUNT_PROPERTY, section.count.toString)
-				conf.set(FixedLengthBinarySectionInputFormat.RECORD_STRIDE_PROPERTY, section.stride.toString)
-				conf.set(FixedLengthBinarySectionInputFormat.RECORD_LENGTH_PROPERTY, section.length.toString)
-				val rdd = sqlContext.sparkContext.newAPIHadoopFile(section.location,
-						classOf[FixedLengthBinarySectionInputFormat],
-						classOf[LongWritable],
-						classOf[BytesWritable])
-              rdd.map({ case (id, bytes) => Row.fromSeq(toSeq(id, bytes)) })
-						//    rdd.map(Row.fromSeq(toRowSeq(_)))
-	}
+  private[iqmulus] def baseRDD(
+    section: BinarySection,
+    toSeq: ((LongWritable, BytesWritable) => Seq[Any])
+  ): RDD[Row] = {
+    val conf = sqlContext.sparkContext.hadoopConfiguration
+    conf.set(FixedLengthBinarySectionInputFormat.RECORD_OFFSET_PROPERTY, section.offset.toString)
+    conf.set(FixedLengthBinarySectionInputFormat.RECORD_COUNT_PROPERTY, section.count.toString)
+    conf.set(FixedLengthBinarySectionInputFormat.RECORD_STRIDE_PROPERTY, section.stride.toString)
+    conf.set(FixedLengthBinarySectionInputFormat.RECORD_LENGTH_PROPERTY, section.length.toString)
+    val rdd = sqlContext.sparkContext.newAPIHadoopFile(
+      section.location,
+      classOf[FixedLengthBinarySectionInputFormat],
+      classOf[LongWritable],
+      classOf[BytesWritable]
+    )
+    rdd.map({ case (id, bytes) => Row.fromSeq(toSeq(id, bytes)) })
+  }
 
-	//def buildScan(columns: Array[String]): RDD[Row] = baseRDD(section.getSubSeq(columns))
-	//def buildScan(): RDD[Row] = baseRDD(section.getSeq)
+  override def buildScan(requiredColumns: Array[String], inputs: Array[FileStatus]): RDD[Row] = {
+    if (inputs.isEmpty) {
+      sqlContext.sparkContext.emptyRDD[Row]
+    } else {
+      val requiredFilenames = inputs.map(_.getPath.toString)
+      val requiredSections = sections.filter(sec => requiredFilenames contains sec.location)
+      new UnionRDD[Row](
+        sqlContext.sparkContext,
+        requiredSections.map { sec => baseRDD(sec, sec.getSubSeq(dataSchema, requiredColumns)) }
+      )
+    }
+  }
 
-	override def buildScan(requiredColumns: Array[String], inputs: Array[FileStatus]): RDD[Row] = {
-		if (inputs.isEmpty) {
-			sqlContext.sparkContext.emptyRDD[Row]
-		} else {
-		  val requiredFilenames = inputs.map(_.getPath.toString)
-		  val requiredSections  = sections.filter(section => requiredFilenames contains section.location)
-		  new UnionRDD[Row](sqlContext.sparkContext,
-					requiredSections.map {section => baseRDD(section,section.getSubSeq(dataSchema,requiredColumns)) })
-		}
-	}
-	
 }
-
-
 

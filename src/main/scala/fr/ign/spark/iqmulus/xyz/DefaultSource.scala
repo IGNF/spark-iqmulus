@@ -17,16 +17,17 @@
 package fr.ign.spark.iqmulus.xyz
 
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.sources.{HadoopFsRelation, HadoopFsRelationProvider}
+import org.apache.spark.sql.sources.{ HadoopFsRelation, HadoopFsRelationProvider }
 import org.apache.spark.sql.types.StructType
 
 class DefaultSource extends HadoopFsRelationProvider {
   override def createRelation(
-      sqlContext: SQLContext,
-      paths: Array[String],
-      dataSchema: Option[StructType],
-      partitionColumns: Option[StructType],
-      parameters: Map[String, String]): HadoopFsRelation = {
-    new XyzRelation(paths, dataSchema)(sqlContext)    
+    sqlContext: SQLContext,
+    paths: Array[String],
+    dataSchema: Option[StructType],
+    partitionColumns: Option[StructType],
+    parameters: Map[String, String]
+  ): HadoopFsRelation = {
+    new XyzRelation(paths, dataSchema)(sqlContext)
   }
 }

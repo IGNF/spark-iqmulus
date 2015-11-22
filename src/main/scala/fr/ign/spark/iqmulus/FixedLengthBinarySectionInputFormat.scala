@@ -17,9 +17,9 @@
 package fr.ign.spark.iqmulus
 
 import org.apache.hadoop.fs.Path
-import org.apache.hadoop.io.{BytesWritable, LongWritable}
+import org.apache.hadoop.io.{ BytesWritable, LongWritable }
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat
-import org.apache.hadoop.mapreduce.{InputSplit, JobContext, RecordReader, TaskAttemptContext}
+import org.apache.hadoop.mapreduce.{ InputSplit, JobContext, RecordReader, TaskAttemptContext }
 import org.apache.spark.deploy.SparkHadoopUtil
 
 /**
@@ -29,24 +29,27 @@ import org.apache.spark.deploy.SparkHadoopUtil
  */
 private[iqmulus] object FixedLengthBinarySectionInputFormat {
   /** Property name to set in Hadoop JobConfs for record length */
-  val RECORD_OFFSET_PROPERTY = "org.apache.spark.input.FixedLengthBinarySectionInputFormat.recordOffset"
-  val RECORD_COUNT_PROPERTY = "org.apache.spark.input.FixedLengthBinarySectionInputFormat.recordCount"
-  val RECORD_LENGTH_PROPERTY = "org.apache.spark.input.FixedLengthBinarySectionInputFormat.recordLength"
-  val RECORD_STRIDE_PROPERTY = "org.apache.spark.input.FixedLengthBinarySectionInputFormat.recordStride"
+  val PROPERTY_PREFIX = "org.apache.spark.input.FixedLengthBinarySectionInputFormat"
+  val RECORD_OFFSET_PROPERTY = s"$PROPERTY_PREFIX.recordOffset"
+  val RECORD_COUNT_PROPERTY = s"$PROPERTY_PREFIX.recordCount"
+  val RECORD_LENGTH_PROPERTY = s"$PROPERTY_PREFIX.recordLength"
+  val RECORD_STRIDE_PROPERTY = s"$PROPERTY_PREFIX.recordStride"
 
   /** Retrieves the record length property from a Hadoop configuration */
-  def getConf(context : JobContext) = SparkHadoopUtil.get.getConfigurationFromJobContext(context)
-  def getRecordOffset(context: JobContext): Long = getConf(context).get(RECORD_OFFSET_PROPERTY).toLong
-  def getRecordCount(context: JobContext): Long = getConf(context).get(RECORD_COUNT_PROPERTY).toLong
-  def getRecordLength(context: JobContext): Int = getConf(context).get(RECORD_LENGTH_PROPERTY).toInt
-  def getRecordStride(context: JobContext): Int = getConf(context).get(RECORD_STRIDE_PROPERTY).toInt
+  def getConf(context: JobContext) = SparkHadoopUtil.get.getConfigurationFromJobContext(context)
+  def getProp(context: JobContext, prop: String) = getConf(context).get(prop)
+
+  def getRecordOffset(context: JobContext): Long = getProp(context, RECORD_OFFSET_PROPERTY).toLong
+  def getRecordCount(context: JobContext): Long = getProp(context, RECORD_COUNT_PROPERTY).toLong
+  def getRecordLength(context: JobContext): Int = getProp(context, RECORD_LENGTH_PROPERTY).toInt
+  def getRecordStride(context: JobContext): Int = getProp(context, RECORD_STRIDE_PROPERTY).toInt
 }
 
 private[iqmulus] class FixedLengthBinarySectionInputFormat
-  extends FileInputFormat[LongWritable, BytesWritable] {
+    extends FileInputFormat[LongWritable, BytesWritable] {
 
   private var recordOffset = -1L
-  private var recordCount  = -1L
+  private var recordCount = -1L
   private var recordLength = -1
   private var recordStride = -1
 
@@ -95,8 +98,7 @@ private[iqmulus] class FixedLengthBinarySectionInputFormat
   /**
    * Create a FixedLengthBinarySectionRecordReader
    */
-  override def createRecordReader(split: InputSplit, context: TaskAttemptContext)
-      : RecordReader[LongWritable, BytesWritable] = {
+  override def createRecordReader(split: InputSplit, context: TaskAttemptContext): RecordReader[LongWritable, BytesWritable] = {
     new FixedLengthBinarySectionRecordReader
   }
 }

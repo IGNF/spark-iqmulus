@@ -23,6 +23,21 @@ import fr.ign.spark.iqmulus.BinarySection
 import java.nio.{ ByteBuffer, ByteOrder }
 import java.io.{ InputStream, DataOutputStream, FileInputStream }
 
+case class Version(major: Byte = 1, minor: Byte = 2) {
+  override def toString = s"$major.$minor"
+  def this(major: Int, minor: Int) { this(major.toByte, minor.toByte) }
+}
+
+case class ProjectID(
+    ID1: Int = 0,
+    ID2: Short = 0,
+    ID3: Short = 0,
+    ID4: Array[Byte] = Array.fill[Byte](8)(0)
+) {
+  override def toString =
+    s"${ID4.mkString}%s-0000-$ID3%04d-$ID2%04d-$ID1%08d"
+}
+
 case class LasHeader(
     location: String,
     pdr_format: Byte,
@@ -35,35 +50,32 @@ case class LasHeader(
     pdr_offset0: Int = 0,
     systemID: String = "spark",
     software: String = "fr.ign.spark.iqmulus",
-    version: Array[Byte] = Array[Byte](1, 2),
+    version: Version = Version(),
     sourceID: Short = 0,
     globalEncoding: Short = 0,
     vlr_nb: Int = 0,
     pdr_length_header: Short = 0,
-    projectID1: Int = 0,
-    projectID2: Short = 0,
-    projectID3: Short = 0,
-    projectID4: Array[Byte] = Array.fill[Byte](8)(0),
-    creation: Array[Short] = Array[Short](0,0)//,
- //   waveform_offset : Long = 0,
- //   evlr_offset : Long = 0,
- //   evlr_nb : Int = 0
-  ) {
+    projectID: ProjectID = ProjectID(),
+    creation: Array[Short] = Array[Short](0, 0),
+    waveform_offset: Long = 0,
+    evlr_offset: Long = 0,
+    evlr_nb: Int = 0
+) {
 
   def schema: StructType = LasHeader.schema(pdr_format)
-  def header_size: Short = LasHeader.header_size(version(0))(version(1))
+  def header_size: Short = LasHeader.header_size(version.major)(version.minor)
   def pdr_offset: Int = if (pdr_offset0 > 0) pdr_offset0 else header_size
-  def pdr_length: Short = Math.max(pdr_length_header,LasHeader.pdr_length(pdr_format)).toShort
+  def pdr_length: Short = Math.max(pdr_length_header, LasHeader.pdr_length(pdr_format)).toShort
 
-  override def toString =
-    f"""---------------------------------------------------------
+  override def toString = f"""
+---------------------------------------------------------
   Header Summary
 ---------------------------------------------------------
 
-  Version:                     ${version.mkString(".")}%s
+  Version:                     $version%s
   Source ID:                   $sourceID%s
   Reserved:                    $globalEncoding%s
-  Project ID/GUID:             '${projectID4.mkString}%s-0000-$projectID3%04d-$projectID2%04d-$projectID1%08d'
+  Project ID/GUID:             '$projectID%s'
   System ID:                   '$systemID%s'
   Generating Software:         '$software%s'
   File Creation Day/Year:      ${creation.mkString("/")}%s
@@ -89,7 +101,11 @@ case class LasHeader(
   Custom schema?:              false
   Size in bytes:               $pdr_length%d
 """
+
   /*
+// scalastyle:off
+f"""
+---------------------------------------------------------
   Dimensions
 ---------------------------------------------------------
   'X'                            --  size: 32 offset: 0
@@ -147,7 +163,9 @@ case class LasHeader(
     0 keypoint
     0 synthetic
   -------------------------------------------------------
-"""*/
+"""
+// scalastyle:on
+*/
 
   def toBinarySection: BinarySection = {
     BinarySection(location, pdr_offset, pdr_nb, true, schema, pdr_length)
@@ -156,17 +174,17 @@ case class LasHeader(
   def write(dos: DataOutputStream): Unit = {
     val bytes = Array.fill[Byte](header_size)(0);
     val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-    def legacy(x : Long) = if(x > Int.MaxValue) 0 else x.toInt
+    def legacy(x: Long) = if (x > Int.MaxValue) 0 else x.toInt
 
     buffer.put("LASF".getBytes)
     buffer.putShort(sourceID)
     buffer.putShort(globalEncoding)
-    buffer.putInt(projectID1)
-    buffer.putShort(projectID2)
-    buffer.putShort(projectID3)
-    projectID4.take(8).foreach (buffer.put)
-    buffer.put(version(0))
-    buffer.put(version(1))
+    buffer.putInt(projectID.ID1)
+    buffer.putShort(projectID.ID2)
+    buffer.putShort(projectID.ID3)
+    projectID.ID4.take(8).foreach(buffer.put)
+    buffer.put(version.major)
+    buffer.put(version.minor)
     buffer.put(systemID.padTo(32, '\0').getBytes)
     buffer.put(software.padTo(32, '\0').getBytes)
     buffer.putShort(creation(0))
@@ -186,14 +204,12 @@ case class LasHeader(
     buffer.putDouble(pmin(1))
     buffer.putDouble(pmax(2))
     buffer.putDouble(pmin(2))
-    if(version(1)>=3)
-    {
-      buffer.putLong(0)//waveform_offset)
+    if (version.minor >= 3) {
+      buffer.putLong(waveform_offset)
     }
-    if(version(1)==4)
-    {
-      buffer.putLong(0)//evlr_offset)
-      buffer.putInt(0)//evlr_nb)
+    if (version.minor >= 4) {
+      buffer.putLong(evlr_offset)
+      buffer.putInt(evlr_nb)
       buffer.putLong(pdr_nb)
       pdr_return_nb.take(15).foreach(buffer.putLong)
     }
@@ -209,7 +225,7 @@ case class LasHeader(
     val evlr_nb = buffer.getInt(243)
     val pdr_nb = buffer.getLong(247)
     val pdr_return_nb = get(255, 15, 8, buffer.getLong)
-    if (version(0) > 1 || version(1) > 0) {
+    if (version.major > 1 || version.minor > 0) {
       println(s"wdpr_offset = $wdpr_offset")
       println(s"evlr_offset = $evlr_offset")
       println(s"evlr_nb = $evlr_nb")
@@ -219,21 +235,23 @@ case class LasHeader(
     */
 
 object LasHeader {
-  val header_size: Map[Int, Array[Short]] = Map(1 -> Array(227,227,227,235,375))
-  def pdr_length(format : Byte) = schema(format).defaultSize.toShort
+  val header_size: Map[Int, Array[Short]] = Map(1 -> Array(227, 227, 227, 235, 375))
+  def pdr_length(format: Byte) = schema(format).defaultSize.toShort
 
   val schema: Array[StructType] = {
     val array = Array.ofDim[Array[(String, DataType)]](11)
     val color = Array(
       "red" -> ShortType,
       "green" -> ShortType,
-      "blue" -> ShortType)
+      "blue" -> ShortType
+    )
 
     val point = Array(
       "x" -> IntegerType,
       "y" -> IntegerType,
       "z" -> IntegerType,
-      "intensity" -> ShortType)
+      "intensity" -> ShortType
+    )
 
     val fw = Array(
       "index" -> ByteType,
@@ -242,14 +260,16 @@ object LasHeader {
       "location" -> FloatType,
       "xt" -> FloatType,
       "yt" -> FloatType,
-      "zt" -> FloatType)
+      "zt" -> FloatType
+    )
 
     array(0) = point ++ Array(
       "flags" -> ByteType,
       "classification" -> ByteType,
       "angle" -> ByteType,
       "user" -> ByteType,
-      "source" -> ShortType)
+      "source" -> ShortType
+    )
 
     array(6) = point ++ Array(
       "return" -> ByteType,
@@ -258,7 +278,8 @@ object LasHeader {
       "user" -> ByteType,
       "angle" -> ShortType,
       "source" -> ShortType,
-      "time" -> DoubleType)
+      "time" -> DoubleType
+    )
 
     array(1) = array(0) ++ Array("time" -> DoubleType)
     array(2) = array(0) ++ color
@@ -295,14 +316,19 @@ object LasHeader {
       Array.tabulate(n)((i: Int) => f(index + stride * i))
 
     val signature = readString(0, 4)
-    if (signature != "LASF") { println(s"$location : not a LAS file, skipping (signature=$signature)"); return None}
+    if (signature != "LASF") {
+      println(s"$location : not a LAS file, skipping (signature=$signature)");
+      return None
+    }
     val sourceID = buffer.getShort(4)
     val globalEncoding = buffer.getShort(6)
-    val projectID1 = buffer.getInt(8)
-    val projectID2 = buffer.getShort(12)
-    val projectID3 = buffer.getShort(14)
-    val projectID4 = get(16, 8, 1, buffer.get)
-    val version = get(24, 2, 1, buffer.get)
+    val projectID = ProjectID(
+      buffer.getInt(8),
+      buffer.getShort(12),
+      buffer.getShort(14),
+      get(16, 8, 1, buffer.get)
+    )
+    val version = Version(buffer.get(24), buffer.get(25))
     val systemID = readString(26, 32)
     val software = readString(58, 32)
     val creation = get(90, 2, 2, buffer.getShort)
@@ -317,25 +343,23 @@ object LasHeader {
     val offset = get(155, 3, 8, buffer.getDouble)
     val pmin = get(187, 3, 16, buffer.getDouble)
     val pmax = get(179, 3, 16, buffer.getDouble)
-    
-    var waveform_offset : Long = 0
-    var evlr_offset : Long = 0
+
+    var waveform_offset: Long = 0
+    var evlr_offset: Long = 0
     var evlr_nb = 0
     var pdr_nb = pdr_nb_legacy.toLong
     var pdr_return_nb = pdr_return_nb_legacy.map(_.toLong)
-    
-    if(version(1)>=3)
-    {
+
+    if (version.minor >= 3) {
       waveform_offset = buffer.getLong(227)
     }
-    if(version(1)>=4)
-    {
+    if (version.minor >= 4) {
       evlr_offset = buffer.getLong(235)
       evlr_nb = buffer.getInt(243)
       pdr_nb = buffer.getLong(247)
       pdr_return_nb = get(255, 15, 8, buffer.getLong)
     }
-    
+
     Some(LasHeader(
       location,
       pdr_format,
@@ -353,14 +377,11 @@ object LasHeader {
       globalEncoding,
       vlr_nb,
       pdr_length,
-      projectID1,
-      projectID2,
-      projectID3,
-      projectID4,
-      creation//,
-   //   waveform_offset,
-   //   evlr_offset,
-   //   evlr_nb
+      projectID,
+      creation,
+      waveform_offset,
+      evlr_offset,
+      evlr_nb
     ))
   }
 }
