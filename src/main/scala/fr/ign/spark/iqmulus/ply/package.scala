@@ -42,38 +42,18 @@ package object ply {
      def saveAsPly(location: String, littleEndian : Boolean = true) = {
        val df2 = df.drop("id")//.na.fill(0)
        val schema = df2.schema
-       val saver = (key: Int,iter:Iterator[Row]) => Iterator(savePlyRow(schema,littleEndian,filename(location) _)(key,iter))
+       val saver = (key: Int,iter:Iterator[Row]) => 
+         Iterator(iter.saveAsPly(s"$location/$key.ply",schema,littleEndian))
        df2.rdd.mapPartitionsWithIndex(saver, true).collect
      }
    }
 
-   def filename(location : String)(key : Int) = s"$location/$key.ply"
-   
-   def savePlyProduct[Key](
+  implicit class PlyRowIterator(iter: Iterator[Row]) {
+    def saveAsPly(
+       filename : String,
        schema : StructType,
-       littleEndian : Boolean,
-       filename : (Key => String) )
-     (key : Key, iter : Iterator[Product]) = {
-     savePlyRow(schema,littleEndian,filename)(key,iter.map(Row.fromTuple))
-   }
-
-   def savePly[Key,Value](
-       schema : StructType,
-       littleEndian : Boolean,
-       filename : (Key => String) )
-     (key : Key, iter : Iterator[Value]) = {
-     if(iter.isInstanceOf[Iterator[Product]])
-       savePlyProduct(schema,littleEndian,filename)(key,iter.asInstanceOf[Iterator[Product]])
-     else savePlyRow(schema,littleEndian,filename)(key,iter.map(value => Row.apply(value)))
-   }
-   
-   def savePlyRow[Key](
-       schema : StructType,
-       littleEndian : Boolean,
-       filename : (Key => String) )
-     (key : Key, iter : Iterator[Row]) = {
-      val name = filename(key)
-      val path = new org.apache.hadoop.fs.Path(name)
+       littleEndian : Boolean) = {
+      val path = new org.apache.hadoop.fs.Path(filename)
       val fs = path.getFileSystem(new org.apache.hadoop.conf.Configuration)
       val f = fs.create(path)
       val rows = iter.toArray
@@ -84,8 +64,8 @@ package object ply {
       val ros = new RowOutputStream(dos,littleEndian,schema)
       rows.foreach(ros.write)
       dos.close
-      (name,count)
+      (filename,count)
     }
-   
+  }
 }
 

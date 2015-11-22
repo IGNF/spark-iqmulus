@@ -27,6 +27,8 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.{Min, Max, Count, Expression, NamedExpression}
+import scala.reflect.{classTag,ClassTag}
+
 
 // optimized counts for PLY and LAS relations
 case class CountPlan(n: Long, sections: Array[BinarySection], name : String) extends SparkPlan {
@@ -79,11 +81,11 @@ object AggregatePlan {
 object Strategy extends SQLStrategy with Serializable {
   
   //work around private[sql] for org.apache.spark.sql.execution.datasources.LogicalRelation
-  def relationMap[Relation <: BaseRelation](plan : LogicalPlan, f : Relation => Seq[SparkPlan]) = {
+  def relationMap[T : ClassTag](plan : LogicalPlan, f : T => Seq[SparkPlan]) = {
       val field = plan.getClass.getDeclaredFields.find(_.getName == "relation")
       field.foreach(_.setAccessible(true))
       field.map(_.get(plan)) match {
-        case Some(relation : Relation) => f(relation)
+        case Some(relation : T) => f(relation)
         case _ => Nil
       }
   }

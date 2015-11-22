@@ -21,64 +21,43 @@ import org.apache.spark.sql.types.{FloatType, StructType}
 
 package object xyz {
 
-  /**
-   * Adds a method, `xyz`, to DataFrameWriter that allows you to write xyz files using
-   * the DataFileWriter
-   */
-  implicit class XyzDataFrameWriter(writer: DataFrameWriter) {
-    def xyz: String => Unit = writer.format("fr.ign.spark.iqmulus.xyz").save
-  }
+	/**
+	 * Adds a method, `xyz`, to DataFrameWriter that allows you to write xyz files using
+	 * the DataFileWriter
+	 */
+	implicit class XyzDataFrameWriter(writer: DataFrameWriter) {
+		def xyz: String => Unit = writer.format("fr.ign.spark.iqmulus.xyz").save
+	}
 
-  /**
-   * Adds a method, `xyz`, to DataFrameReader that allows you to read xyz files using
-   * the DataFileReade
-   */
-  implicit class XyzDataFrameReader(reader: DataFrameReader) {
-    def xyz: String => DataFrame = reader.format("fr.ign.spark.iqmulus.xyz").load
-  }
+	/**
+	 * Adds a method, `xyz`, to DataFrameReader that allows you to read xyz files using
+	 * the DataFileReade
+	 */
+	implicit class XyzDataFrameReader(reader: DataFrameReader) {
+		def xyz: String => DataFrame = reader.format("fr.ign.spark.iqmulus.xyz").load
+	}
 
-    implicit class XyzDataFrame(df: DataFrame) {
-     def saveAsXyz(
-         location: String
-       ) = {
-       val df2 = df.drop("id")//.na.fill(0)
-       require(df2.schema.fieldNames.take(3) sameElements Array("x","y","z"))
-       require(df2.schema.fields.map(_.dataType).take(3).forall(_ == FloatType))
-       val saver = (key: Int,iter:Iterator[Row]) => Iterator(saveXyzRow(filename(location) _)(key,iter))
-       df2.rdd.mapPartitionsWithIndex(saver, true).collect
-     }
-   }
+	implicit class XyzDataFrame(df: DataFrame) {
+		def saveAsXyz(location: String) = {
+			val df2 = df.drop("id")//.na.fill(0)
+					require(df2.schema.fieldNames.take(3) sameElements Array("x","y","z"))
+					require(df2.schema.fields.map(_.dataType).take(3).forall(_ == FloatType))
+					val saver = (key: Int,iter:Iterator[Row]) => Iterator(iter.saveXyz(s"$location/$key.xyz"))
+					df2.rdd.mapPartitionsWithIndex(saver, true).collect
+		}
+	}
 
-   def filename(location : String)(key : Int) = s"$location/$key.xyz"
-   
-   def saveXyzProduct[Key](
-       filename : (Key => String) )
-     (key : Key, iter : Iterator[Product]) = {
-     saveXyzRow(filename)(key,iter.map(Row.fromTuple))
-   }
-
-   def saveXyz[Key,Value](
-       schema : StructType,
-       filename : (Key => String) )
-     (key : Key, iter : Iterator[Value]) = {
-     if(iter.isInstanceOf[Iterator[Product]])
-       saveXyzProduct(filename)(key,iter.asInstanceOf[Iterator[Product]])
-     else saveXyzRow(filename)(key,iter.map(value => Row.apply(value)))
-   }
-   
-   def saveXyzRow[Key](
-       filename : (Key => String) )
-     (key : Key, rows : Iterator[Row]) = {
-      val name = filename(key)
-      val path = new org.apache.hadoop.fs.Path(name)
-      val fs = path.getFileSystem(new org.apache.hadoop.conf.Configuration)
-      val f = fs.create(path)
-      val dos = new java.io.DataOutputStream(f)
-      var count = 0L
-      rows.foreach(row => {count+=1; dos.writeBytes(row.mkString("","\t","\n"))})
-      dos.close
-      (name,count)
-    }
-   
+	implicit class XyzRowIterator(iter : Iterator[Row]) {
+		def saveXyz(filename : String) = {
+			val path = new org.apache.hadoop.fs.Path(filename)
+			val fs = path.getFileSystem(new org.apache.hadoop.conf.Configuration)
+			val f = fs.create(path)
+			val dos = new java.io.DataOutputStream(f)
+			var count = 0L
+			iter.foreach(row => {count+=1; dos.writeBytes(row.mkString("","\t","\n"))})
+			dos.close
+			(filename,count)
+		}
+	}
 }
 

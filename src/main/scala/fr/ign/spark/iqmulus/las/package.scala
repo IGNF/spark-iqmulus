@@ -17,7 +17,6 @@
 package fr.ign.spark.iqmulus
 
 import org.apache.spark.sql.{SQLContext, DataFrameReader, DataFrameWriter, DataFrame}
-//import scala.reflect.ClassTag
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.Row
 
@@ -57,39 +56,17 @@ package object las {
        val schema = LasHeader.schema(format) // no user types for now
        val cols   = schema.fieldNames.intersect(df.schema.fieldNames)
        //val conf = df.sqlContext.sparkContext.hadoopConfiguration // issue : not serializable
-       val saveRow = saveLasRow(schema,format,scale,offset,Array(major,minor),filename(location)) _
-       val saver = (key: Int,iter:Iterator[Row]) => Iterator(saveRow(key,iter))
+       val saver = (key: Int,iter:Iterator[Row]) => 
+         Iterator(iter.saveAsLas(s"$location/$key.las",schema,format,scale,offset,Array(major,minor)))
        dfna.select(cols.head, cols.tail :_*).rdd.mapPartitionsWithIndex(saver, true).collect
      }
    }
-
-   def filename(location : String)(key : Int) = s"$location/$key.las"
-      
-   def saveLasProduct[Key](
-       schema : StructType, format : Byte,
-       scale : Array[Double], offset : Array[Double], version : Array[Byte],
-       filename : (Key => String) )
-     (key : Key, iter : Iterator[Product]) = {
-     saveLasRow(schema,format,scale,offset,version,filename)(key,iter.map(Row.fromTuple))
-   }
-
-   def saveLas[Key,Value](
-       schema : StructType, format : Byte,
-       scale : Array[Double], offset : Array[Double], version : Array[Byte],
-       filename : (Key => String) )
-     (key : Key, iter : Iterator[Value]) = {
-     if(iter.isInstanceOf[Iterator[Product]])
-       saveLasProduct(schema,format,scale,offset,version,filename)(key,iter.asInstanceOf[Iterator[Product]])
-     else saveLasRow(schema,format,scale,offset,version,filename)(key,iter.map(value => Row.apply(value)))
-   }
    
    
-   
-   def saveLasRow[Key](
-       schema : StructType, format : Byte,
-       scale : Array[Double], offset : Array[Double], version : Array[Byte],
-       filename : (Key => String) )
-     (key : Key, iter: Iterator[Row]) = {
+  implicit class LasRowIterator(iter: Iterator[Row]) {
+    def saveAsLas(
+       filename : String, schema : StructType, format : Byte,
+       scale : Array[Double], offset : Array[Double], version : Array[Byte]) = {
       val rows = iter.toArray // materialize the partition to access it in a single pass, TODO workaround that 
       val count = rows.length.toLong
       val pmin = Array.fill[Double](3)(Double.PositiveInfinity)
@@ -108,16 +85,16 @@ package object las {
          pmax(1) = Math.max(pmax(1),y)
          pmax(2) = Math.max(pmax(2),z)
       }
-      val name = filename(key)
-      val path = new org.apache.hadoop.fs.Path(name)
+      val path = new org.apache.hadoop.fs.Path(filename)
       val fs = path.getFileSystem(new org.apache.hadoop.conf.Configuration)
       val f = fs.create(path)
-      val header = new LasHeader(name,format,count,pmin,pmax,scale,offset,version=version,pdr_return_nb=countByReturn)
+      val header = new LasHeader(filename,format,count,pmin,pmax,scale,offset,version=version,pdr_return_nb=countByReturn)
       val dos = new java.io.DataOutputStream(f);
       header.write(dos)
       val ros = new RowOutputStream(dos,littleEndian=true,schema)
       rows.foreach(ros.write)
       dos.close
-      (name,count)
+      (filename,count)
     }  
+  }
 }

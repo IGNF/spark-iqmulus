@@ -29,9 +29,9 @@ object XyzRelation {
         StructField("x",FloatType,false),
         StructField("y",FloatType,false),
         StructField("z",FloatType,false),
-        StructField("r",IntegerType,false),
-        StructField("g",IntegerType,false),
-        StructField("b",IntegerType,false)
+        StructField("r",ByteType,false),
+        StructField("g",ByteType,false),
+        StructField("b",ByteType,false)
   ))
   
   val xyzSchema = StructType(Array(
