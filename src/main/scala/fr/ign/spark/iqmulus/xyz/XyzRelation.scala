@@ -54,7 +54,7 @@ class XyzRelation (override val paths: Array[String], val dataSchemaOpt : Option
 	override def buildScan(inputs: Array[FileStatus]): RDD[Row] = {
 	  val lines = sqlContext.sparkContext.textFile(inputs.map(_.getPath).mkString("",",",""))
 	  val dataTypes = dataSchema.fields.map(_.dataType)
-	  lines map (line => Row.fromSeq((line.split("\t") take (dataTypes.size) zip dataTypes).map{
+	  lines map (line => Row.fromSeq((line.split("\t") zip dataTypes).map{
 	    case (x,StringType)  => x
 	    case (x,ByteType)    => x.toByte
 	    case (x,ShortType)   => x.toShort
