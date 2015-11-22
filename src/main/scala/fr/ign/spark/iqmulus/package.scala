@@ -183,6 +183,8 @@ package object iqmulus {
       }
       dos write bytes
     }
+
+    def close = dos.close
   }
 }
 

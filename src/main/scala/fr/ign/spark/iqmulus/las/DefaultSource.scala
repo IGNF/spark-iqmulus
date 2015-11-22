@@ -28,6 +28,6 @@ class DefaultSource extends HadoopFsRelationProvider {
     partitionColumns: Option[StructType],
     parameters: Map[String, String]
   ): HadoopFsRelation = {
-    new LasRelation(paths)(sqlContext)
+    new LasRelation(paths, dataSchema, partitionColumns, parameters)(sqlContext)
   }
 }

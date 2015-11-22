@@ -19,11 +19,17 @@ package fr.ign.spark.iqmulus.ply
 import fr.ign.spark.iqmulus.{ BinarySectionRelation, BinarySection }
 import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.types._
 
 class PlyRelation(
-    override val paths: Array[String],
-    element: String = "vertex"
-)(@transient val sqlContext: SQLContext) extends BinarySectionRelation {
+  override val paths: Array[String],
+  dataSchemaOpt: Option[StructType],
+  partitionColumns: Option[StructType],
+  parameters: Map[String, String]
+)(@transient val sqlContext: SQLContext)
+    extends BinarySectionRelation(dataSchemaOpt, partitionColumns, parameters) {
+
+  def element = parameters.getOrElse("element", "vertex")
 
   lazy val headers: Array[PlyHeader] = paths flatMap { location =>
     val path = new Path(location)

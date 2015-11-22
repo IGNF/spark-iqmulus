@@ -21,8 +21,15 @@ import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources.OutputWriterFactory
 import org.apache.hadoop.mapreduce.Job
+import org.apache.spark.sql.types._
 
-class LasRelation(override val paths: Array[String])(@transient val sqlContext: SQLContext) extends BinarySectionRelation {
+class LasRelation(
+  override val paths: Array[String],
+  dataSchemaOpt: Option[StructType],
+  partitionColumns: Option[StructType],
+  parameters: Map[String, String]
+)(@transient val sqlContext: SQLContext)
+    extends BinarySectionRelation(dataSchemaOpt, partitionColumns, parameters) {
 
   lazy val headers: Array[LasHeader] = paths flatMap { location =>
     val path = new Path(location)
@@ -40,7 +47,7 @@ class LasRelation(override val paths: Array[String])(@transient val sqlContext: 
   override def sections: Array[BinarySection] = headers.map(_.toBinarySection)
 
   override def prepareJobForWrite(job: Job): OutputWriterFactory = {
-    new LasOutputWriterFactory(dataSchema)
+    new LasOutputWriterFactory
   }
 }
 

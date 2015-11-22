@@ -28,6 +28,6 @@ class DefaultSource extends HadoopFsRelationProvider {
     partitionColumns: Option[StructType],
     parameters: Map[String, String]
   ): HadoopFsRelation = {
-    new PlyRelation(paths, parameters.getOrElse("element", "vertex"))(sqlContext)
+    new PlyRelation(paths, dataSchema, partitionColumns, parameters)(sqlContext)
   }
 }

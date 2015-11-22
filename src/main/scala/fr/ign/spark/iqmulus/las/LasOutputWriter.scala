@@ -30,7 +30,7 @@ import org.apache.hadoop.io.NullWritable
 import org.apache.hadoop.mapreduce.{TaskAttemptID, RecordWriter, TaskAttemptContext}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.sources.OutputWriter
-*/
+ */
 import org.apache.spark.sql.types._
 import org.apache.hadoop.mapreduce.{ TaskAttemptID, RecordWriter, TaskAttemptContext }
 import java.io.DataOutputStream
@@ -57,13 +57,13 @@ class LasOutputFormat(outputFile: Path) extends FileOutputFormat[NullWritable, B
 
 class LasOutputWriter(path: String, dataSchema: StructType, context: TaskAttemptContext)
   extends OutputWriter {
-  
+
   private val recordWriter: RecordWriter[NullWritable, BytesWritable] =
     new LasOutputFormat(new Path(path)).getRecordWriter(context)
 
   def toBytes(row: Row) : Array[Byte] = Array.empty[Byte]
   val writable = new BytesWritable
-    
+
   override def write(row: Row): Unit = {
     val bytes = toBytes(row)
     writable.set(bytes,0,bytes.length)
@@ -74,46 +74,68 @@ class LasOutputWriter(path: String, dataSchema: StructType, context: TaskAttempt
     recordWriter.close(context)
   }
 }
-*/
-
-class LasOutputWriter(name: String, dataSchema: StructType, context: TaskAttemptContext)
+ */
+class LasOutputWriter(
+  name: String,
+  context: TaskAttemptContext,
+  schema: StructType,
+  format: Byte = 0,
+  offset: Array[Double] = Array(0F, 0F, 0F),
+  scale: Array[Double] = Array(1F, 1F, 1F)
+)
     extends OutputWriter {
 
   private val file = {
-    println("file")
-    val path = new Path(name)
-    path.getFileSystem(context.getConfiguration).create(path)
+    println(s"file : $name")
+    println(context)
+    println(s"file : $name")
+    val path = getDefaultWorkFile(".las", "1.pdr")
+    val fs = path.getFileSystem(context.getConfiguration)
+    fs.create(path)
   }
 
-  private var count = 0
+  private val pmin = Array.fill[Double](3)(Double.PositiveInfinity)
+  private val pmax = Array.fill[Double](3)(Double.NegativeInfinity)
+  private val countByReturn = Array.fill[Long](15)(0)
 
   private def header = {
-    println("header")
-    val format = 0.toByte
-    val schema = LasHeader.schema(format)
-    val cols = schema.fieldNames.intersect(dataSchema.fieldNames)
-    new LasHeader(name, format, count)
+    val count = countByReturn.sum
+    new LasHeader(name, format, count, pmin, pmax, scale, offset, countByReturn)
   }
 
-  def headerWriter = {
-    println("headerWriter")
-    val dos = new DataOutputStream(file)
-    header.write(dos)
-    dos
-  }
+  private val recordWriter = new RowOutputStream(new DataOutputStream(file), littleEndian = true, schema)
 
-  private val recordWriter = new RowOutputStream(headerWriter, littleEndian = true, dataSchema)
+  def getDefaultWorkFile(extension: String, section: String): Path = {
+    val uniqueWriteJobId = context.getConfiguration.get("spark.sql.sources.writeJobUUID")
+    val taskAttemptId: TaskAttemptID = context.getTaskAttemptID
+    val split = taskAttemptId.getTaskID.getId
+    new Path(name, f"part-r-$split%05d-$uniqueWriteJobId$extension/$section")
+  }
 
   override def write(row: Row): Unit = {
-    print(".")
-    count += 1
     recordWriter.write(row)
+    val x = offset(0) + scale(0) * row.getAs[Int]("x").toDouble
+    val y = offset(1) + scale(1) * row.getAs[Int]("y").toDouble
+    val z = offset(2) + scale(2) * row.getAs[Int]("z").toDouble
+    val ret = row.getAs[Byte]("flags") & 0x3
+    countByReturn(ret) += 1
+    pmin(0) = Math.min(pmin(0), x)
+    pmin(1) = Math.min(pmin(1), y)
+    pmin(2) = Math.min(pmin(2), z)
+    pmax(0) = Math.max(pmax(0), x)
+    pmax(1) = Math.max(pmax(1), y)
+    pmax(2) = Math.max(pmax(2), z)
   }
 
   override def close(): Unit = {
-    println("close")
-    recordWriter.dos.close
-    headerWriter.close
+    recordWriter.close
+
+    println(header)
+    val path = getDefaultWorkFile(".las", "0.header")
+    val fs = path.getFileSystem(context.getConfiguration)
+    val dos = new java.io.DataOutputStream(fs.create(path))
+    header.write(dos)
+    dos.close
   }
 }
 
@@ -122,24 +144,24 @@ class LasOutputWriter(name: String, dataSchema: StructType, context: TaskAttempt
 private[las] class LasOutputWriter(
   path: String, dataSchema: StructType, context: TaskAttemptContext) 
   extends OutputWriter {
-  
+
   /**
-   * Overrides the couple of methods responsible for generating the output streams / files so
-   * that the data can be correctly partitioned
-   * */
+ * Overrides the couple of methods responsible for generating the output streams / files so
+ * that the data can be correctly partitioned
+ * */
   /*
   private val recordWriter: RecordWriter[NullWritable, BytesWritable] = {
     val dos = new DataOutputStream(path)
     LasHeader.schema(format).write(dos)
-    
+
   }
-  */
+ */
   private val format = 0
-  
+
   private val recordWriter: RecordWriter[NullWritable, BytesWritable] = {.getRecordWriter(context)
   }
 
-  
+
   /*
     new AvroKeyOutputFormat[GenericRecord]() {
 
@@ -170,13 +192,13 @@ private[las] class LasOutputWriter(
       }
 
     }.getRecordWriter(context)
-    */
+ */
   override def write(row: Row): Unit = recordWriter write row
-  
+
   override def close(): Unit = recordWriter close
 
 }
-*/
+ */
 
 /*
 
@@ -215,10 +237,10 @@ package object las {
           Iterator((path.toString, count))
       }, true)
     }
-    
+
   }
 
 }
 
-*/
+ */
 

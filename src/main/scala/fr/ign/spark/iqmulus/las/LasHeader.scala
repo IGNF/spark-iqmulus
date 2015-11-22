@@ -35,7 +35,7 @@ case class ProjectID(
     ID4: Array[Byte] = Array.fill[Byte](8)(0)
 ) {
   override def toString =
-    s"${ID4.mkString}%s-0000-$ID3%04d-$ID2%04d-$ID1%08d"
+    f"${ID4.mkString}%s-0000-$ID3%04d-$ID2%04d-$ID1%08d"
 }
 
 case class LasHeader(
@@ -302,7 +302,12 @@ object LasHeader {
   def read(location: String, in: InputStream): Option[LasHeader] = {
     val dis = new java.io.DataInputStream(in)
     val bytes = Array.ofDim[Byte](375)
-    dis.readFully(bytes)
+    try dis.readFully(bytes)
+    catch {
+      case e: java.io.IOException =>
+        println(s"$location : Unable to read (${bytes.length} bytes, skipping.");
+        return None
+    }
     val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
 
     def readString(offset: Int, length: Int) = {

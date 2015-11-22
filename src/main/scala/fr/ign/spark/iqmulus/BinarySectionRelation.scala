@@ -28,6 +28,7 @@ import org.apache.hadoop.fs.{ FileSystem, FileStatus, Path }
 import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.Logging
 
 // workaround the protected Cast nullSafeEval to make it public
 class IQmulusCast(child: Expression, dataType: DataType)
@@ -94,7 +95,12 @@ case class BinarySection(
  * TODO
  * @param TODO
  */
-abstract class BinarySectionRelation extends HadoopFsRelation with org.apache.spark.Logging {
+abstract class BinarySectionRelation(
+  dataSchemaOpt: Option[StructType],
+  partitionColumns: Option[StructType],
+  parameters: Map[String, String]
+)
+    extends HadoopFsRelation with Logging {
 
   def sections: Array[BinarySection]
 
@@ -102,8 +108,10 @@ abstract class BinarySectionRelation extends HadoopFsRelation with org.apache.sp
    * Determine the RDD Schema based on the se header info.
    * @return StructType instance
    */
-  override lazy val dataSchema: StructType =
-    if (sections.isEmpty) StructType(Nil) else sections.map(_.schema).reduce(_ merge _)
+  override lazy val dataSchema: StructType = dataSchemaOpt match {
+    case Some(structType) => structType
+    case None => if (sections.isEmpty) StructType(Nil) else sections.map(_.schema).reduce(_ merge _)
+  }
 
   override def prepareJobForWrite(job: org.apache.hadoop.mapreduce.Job): org.apache.spark.sql.sources.OutputWriterFactory = ???
 
