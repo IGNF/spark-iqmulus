@@ -27,5 +27,5 @@ private[las] class LasOutputWriterFactory extends OutputWriterFactory {
     dataSchema: StructType,
     context: TaskAttemptContext
   ): OutputWriter =
-    new LasOutputWriter(path, context, dataSchema)
+    new LasOutputWriter(path, context, StructType(dataSchema.filter(_.name != "id")))
 }

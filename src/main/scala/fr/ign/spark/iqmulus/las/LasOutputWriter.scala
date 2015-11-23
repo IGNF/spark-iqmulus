@@ -39,10 +39,7 @@ class LasOutputWriter(
     extends OutputWriter {
 
   private val file = {
-    println(s"file : $name")
-    println(context)
-    println(s"file : $name")
-    val path = getDefaultWorkFile(".las", "1.pdr")
+    val path = getDefaultWorkFile("/1.pdr")
     val fs = path.getFileSystem(context.getConfiguration)
     fs.create(path)
   }
@@ -58,11 +55,11 @@ class LasOutputWriter(
 
   private val recordWriter = new RowOutputStream(new DataOutputStream(file), littleEndian = true, schema)
 
-  def getDefaultWorkFile(extension: String, section: String): Path = {
+  def getDefaultWorkFile(extension: String): Path = {
     val uniqueWriteJobId = context.getConfiguration.get("spark.sql.sources.writeJobUUID")
     val taskAttemptId: TaskAttemptID = context.getTaskAttemptID
     val split = taskAttemptId.getTaskID.getId
-    new Path(name, f"part-r-$split%05d-$uniqueWriteJobId$extension/$section")
+    new Path(name, f"$split%05d-$uniqueWriteJobId$extension")
   }
 
   override def write(row: Row): Unit = {
@@ -82,12 +79,17 @@ class LasOutputWriter(
 
   override def close(): Unit = {
     recordWriter.close
-
-    println(header)
-    val path = getDefaultWorkFile(".las", "0.header")
+    // println(header)
+    val path = getDefaultWorkFile("/0.header")
     val fs = path.getFileSystem(context.getConfiguration)
     val dos = new java.io.DataOutputStream(fs.create(path))
     header.write(dos)
     dos.close
+
+    org.apache.hadoop.fs.FileUtil.copyMerge(
+      fs, getDefaultWorkFile("/"),
+      fs, getDefaultWorkFile(".las"),
+      true, context.getConfiguration, ""
+    )
   }
 }
