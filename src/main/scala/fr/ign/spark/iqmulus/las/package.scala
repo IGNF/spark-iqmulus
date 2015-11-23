@@ -95,7 +95,7 @@ package object las {
       val ros = new RowOutputStream(dos, littleEndian = true, schema)
       rows.foreach(ros.write)
       dos.close
-      (filename, count)
+      header
     }
   }
 }

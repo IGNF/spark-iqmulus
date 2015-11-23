@@ -77,10 +77,12 @@ case class PlyHeader(
     location: String,
     littleEndian: Boolean,
     length: Long,
-    elements: Seq[PlyElement],
-    obj_info: Seq[String],
-    comments: Seq[String]
+    elements: Seq[PlyElement] = Seq.empty[PlyElement],
+    obj_info: Seq[String] = Seq.empty[String],
+    comments: Seq[String] = Seq.empty[String]
 ) {
+
+  def write(dos: DataOutputStream) = dos writeBytes toString
 
   override def toString =
     "ply\n" +
@@ -99,17 +101,26 @@ case class PlyHeader(
   }
 
   def this(
-    schemas: Map[String, (Long, StructType)],
+    location: String,
     littleEndian: Boolean,
-    obj_info: Seq[String] = Seq[String](),
-    comments: Seq[String] = Seq[String]()
+    schemas: Map[String, (Long, StructType)],
+    obj_info: Seq[String],
+    comments: Seq[String]
   ) {
-    this("", littleEndian, 0, schemas.map {
+    this(location, littleEndian, 0, schemas.map {
       case (name, (count, schema)) =>
         PlyElement(name, littleEndian, count, schema.fields.map { f =>
           new PlyProperty(f.name, f.dataType)
         })
     }.toSeq, obj_info, comments)
+  }
+
+  def this(
+    location: String,
+    littleEndian: Boolean,
+    schemas: Map[String, (Long, StructType)]
+  ) {
+    this(location, littleEndian, schemas, Seq.empty[String], Seq.empty[String])
   }
 
 }

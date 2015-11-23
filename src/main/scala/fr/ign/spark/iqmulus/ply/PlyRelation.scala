@@ -20,6 +20,8 @@ import fr.ign.spark.iqmulus.{ BinarySectionRelation, BinarySection }
 import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.types._
+import org.apache.hadoop.mapreduce.Job
+import org.apache.spark.sql.sources.OutputWriterFactory
 
 class PlyRelation(
   override val paths: Array[String],
@@ -29,7 +31,8 @@ class PlyRelation(
 )(@transient val sqlContext: SQLContext)
     extends BinarySectionRelation(dataSchemaOpt, partitionColumns, parameters) {
 
-  def element = parameters.getOrElse("element", "vertex")
+  val element = parameters.getOrElse("element", "vertex")
+  val littleEndian = parameters.getOrElse("littleEndian", "true").toBoolean
 
   lazy val headers: Array[PlyHeader] = paths flatMap { location =>
     val path = new Path(location)
@@ -46,5 +49,9 @@ class PlyRelation(
 
   override def sections: Array[BinarySection] =
     headers.flatMap(_.section.get(element))
+
+  override def prepareJobForWrite(job: Job): OutputWriterFactory = {
+    new PlyOutputWriterFactory(element, littleEndian)
+  }
 }
 

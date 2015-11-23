@@ -58,13 +58,13 @@ package object ply {
       val f = fs.create(path)
       val rows = iter.toArray
       val count = rows.size.toLong
-      val header = new PlyHeader(Map("vertex" -> ((count, schema))), littleEndian)
+      val header = new PlyHeader(filename, littleEndian, Map("vertex" -> ((count, schema))))
       val dos = new java.io.DataOutputStream(f);
       dos.write(header.toString.getBytes)
       val ros = new RowOutputStream(dos, littleEndian, schema)
       rows.foreach(ros.write)
       dos.close
-      (filename, count)
+      header
     }
   }
 }

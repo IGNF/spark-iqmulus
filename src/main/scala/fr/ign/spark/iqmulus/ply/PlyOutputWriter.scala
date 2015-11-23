@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package fr.ign.spark.iqmulus.las
+package fr.ign.spark.iqmulus.ply
 
 import org.apache.spark.sql.types._
 import org.apache.hadoop.mapreduce.{ TaskAttemptID, RecordWriter, TaskAttemptContext }
@@ -28,32 +28,24 @@ import java.text.NumberFormat
 import org.apache.spark.sql.{ Row, SQLContext, sources }
 import fr.ign.spark.iqmulus.RowOutputStream
 
-class LasOutputWriter(
+class PlyOutputWriter(
   name: String,
   context: TaskAttemptContext,
   schema: StructType,
-  format: Byte = 0,
-  offset: Array[Double] = Array(0F, 0F, 0F),
-  scale: Array[Double] = Array(0.01F, 0.01F, 0.01F)
+  element: String,
+  littleEndian: Boolean
 )
     extends OutputWriter {
 
   private val file = {
-    val path = getDefaultWorkFile("/1.pdr")
+    val path = getDefaultWorkFile(s"/1.$element")
     val fs = path.getFileSystem(context.getConfiguration)
     fs.create(path)
   }
 
-  private val pmin = Array.fill[Double](3)(Double.PositiveInfinity)
-  private val pmax = Array.fill[Double](3)(Double.NegativeInfinity)
-  private val countByReturn = Array.fill[Long](15)(0)
+  private var count = 0L
 
-  private def header = {
-    val count = countByReturn.sum
-    new LasHeader(name, format, count, pmin, pmax, scale, offset, countByReturn)
-  }
-
-  private val recordWriter = new RowOutputStream(new DataOutputStream(file), littleEndian = true, schema)
+  private val recordWriter = new RowOutputStream(new DataOutputStream(file), littleEndian, schema)
 
   def getDefaultWorkFile(extension: String): Path = {
     val uniqueWriteJobId = context.getConfiguration.get("spark.sql.sources.writeJobUUID")
@@ -64,17 +56,7 @@ class LasOutputWriter(
 
   override def write(row: Row): Unit = {
     recordWriter.write(row)
-    val x = offset(0) + scale(0) * row.getAs[Int]("x").toDouble
-    val y = offset(1) + scale(1) * row.getAs[Int]("y").toDouble
-    val z = offset(2) + scale(2) * row.getAs[Int]("z").toDouble
-    val ret = row.getAs[Byte]("flags") & 0x3
-    countByReturn(ret) += 1
-    pmin(0) = Math.min(pmin(0), x)
-    pmin(1) = Math.min(pmin(1), y)
-    pmin(2) = Math.min(pmin(2), z)
-    pmax(0) = Math.max(pmax(0), x)
-    pmax(1) = Math.max(pmax(1), y)
-    pmax(2) = Math.max(pmax(2), z)
+    count += 1
   }
 
   override def close(): Unit = {
@@ -83,12 +65,14 @@ class LasOutputWriter(
     val path = getDefaultWorkFile("/0.header")
     val fs = path.getFileSystem(context.getConfiguration)
     val dos = new java.io.DataOutputStream(fs.create(path))
+
+    val header = new PlyHeader(path.toString, littleEndian, Map(element -> ((count, schema))))
     header.write(dos)
     dos.close
 
     org.apache.hadoop.fs.FileUtil.copyMerge(
       fs, getDefaultWorkFile("/"),
-      fs, getDefaultWorkFile(".las"),
+      fs, getDefaultWorkFile(".ply"),
       true, context.getConfiguration, ""
     )
   }
