@@ -63,15 +63,16 @@ class PlyOutputWriter(
 
   override def close(): Unit = {
     recordWriter.close
-    // println(header)
+
+    // write header
     val path = getDefaultWorkFile("/0.header")
     val fs = path.getFileSystem(context.getConfiguration)
     val dos = new java.io.DataOutputStream(fs.create(path))
-
     val header = new PlyHeader(path.toString, littleEndian, Map(element -> ((count, schema))))
     header.write(dos)
     dos.close
 
+    // copy header and pdf to a final las file (1 per split)
     org.apache.hadoop.fs.FileUtil.copyMerge(
       fs, getDefaultWorkFile("/"),
       fs, getDefaultWorkFile(".ply"),

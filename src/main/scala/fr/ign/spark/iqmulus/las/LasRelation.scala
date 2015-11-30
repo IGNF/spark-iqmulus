@@ -31,6 +31,12 @@ class LasRelation(
 )(@transient val sqlContext: SQLContext)
     extends BinarySectionRelation(dataSchemaOpt, partitionColumns, parameters) {
 
+  def format = parameters.get("lasformat").map(_.toByte)
+  def minor = parameters.get("minor").map(_.toByte).getOrElse(Version.minorDefault)
+  def major = parameters.get("major").map(_.toByte).getOrElse(Version.majorDefault)
+  def version = parameters.get("version").map(Version.fromString)
+    .getOrElse(Version(major, minor))
+
   lazy val headers: Array[LasHeader] = paths flatMap { location =>
     val path = new Path(location)
     val fs = FileSystem.get(path.toUri, sqlContext.sparkContext.hadoopConfiguration)
@@ -47,7 +53,7 @@ class LasRelation(
   override def sections: Array[BinarySection] = headers.map(_.toBinarySection)
 
   override def prepareJobForWrite(job: Job): OutputWriterFactory = {
-    new LasOutputWriterFactory(parameters("pdf").toByte)
+    new LasOutputWriterFactory(format, version)
   }
 }
 

@@ -32,7 +32,8 @@ class LasOutputWriter(
   name: String,
   context: TaskAttemptContext,
   dataSchema: StructType,
-  format: Byte = 0,
+  formatOpt: Option[Byte] = None,
+  version: Version = Version(),
   offset: Array[Double] = Array(0F, 0F, 0F),
   scale: Array[Double] = Array(0.01F, 0.01F, 0.01F)
 )
@@ -41,9 +42,6 @@ class LasOutputWriter(
   private val file = {
     val path = getDefaultWorkFile("/1.pdr")
     val fs = path.getFileSystem(context.getConfiguration)
-    println(path)
-    println(format)
-    dataSchema foreach println
     fs.create(path)
   }
 
@@ -51,6 +49,10 @@ class LasOutputWriter(
   private val pmax = Array.fill[Double](3)(Double.NegativeInfinity)
   private val countByReturn = Array.fill[Long](15)(0)
   private def count = countByReturn.sum
+
+  private val format = formatOpt.getOrElse(LasHeader.formatFromSchema(dataSchema))
+
+  // todo, extra bytes
   private val schema = LasHeader.schema(format)
   private def header =
     new LasHeader(name, format, count, pmin, pmax, scale, offset, countByReturn)
@@ -65,8 +67,9 @@ class LasOutputWriter(
   }
 
   override def write(row: Row): Unit = {
-    if (count == 0) row.schema foreach println
     recordWriter.write(row)
+
+    // gather statistics for the header
     val x = offset(0) + scale(0) * row.getAs[Int]("x").toDouble
     val y = offset(1) + scale(1) * row.getAs[Int]("y").toDouble
     val z = offset(2) + scale(2) * row.getAs[Int]("z").toDouble
@@ -82,13 +85,15 @@ class LasOutputWriter(
 
   override def close(): Unit = {
     recordWriter.close
-    // println(header)
+
+    // write header
     val path = getDefaultWorkFile("/0.header")
     val fs = path.getFileSystem(context.getConfiguration)
     val dos = new java.io.DataOutputStream(fs.create(path))
     header.write(dos)
     dos.close
 
+    // copy header and pdf to a final las file (1 per split)
     org.apache.hadoop.fs.FileUtil.copyMerge(
       fs, getDefaultWorkFile("/"),
       fs, getDefaultWorkFile(".las"),

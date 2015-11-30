@@ -23,9 +23,20 @@ import fr.ign.spark.iqmulus.BinarySection
 import java.nio.{ ByteBuffer, ByteOrder }
 import java.io.{ InputStream, DataOutputStream, FileInputStream }
 
-case class Version(major: Byte = 1, minor: Byte = 2) {
+case class Version(
+    major: Byte = Version.majorDefault,
+    minor: Byte = Version.minorDefault
+) {
   override def toString = s"$major.$minor"
-  def this(major: Int, minor: Int) { this(major.toByte, minor.toByte) }
+}
+
+object Version {
+  val majorDefault: Byte = 1
+  val minorDefault: Byte = 2
+  def fromString(version: String) = {
+    val Array(major, minor) = version.split('.') map (_.toByte)
+    Version(major, minor)
+  }
 }
 
 case class ProjectID(
@@ -295,6 +306,17 @@ object LasHeader {
       StructType(fields map (field => StructField(field._1, field._2, nullable = false)))
     array map toStructType
   }
+
+  def formatFromSchema(schema: StructType): Byte =
+    {
+      val fieldSet = schema.fields.toSet - "id"
+      def subSchema(schema: StructType) = fieldSet subsetOf schema.fields.toSet
+      val format = (LasHeader.schema indexWhere subSchema).toByte
+      if (format == -1) {
+        sys.error(s"dataframe schema is not a subset of any LAS format schema")
+      }
+      format
+    }
 
   def read(location: String): Option[LasHeader] =
     read(location, new FileInputStream(location))
