@@ -20,12 +20,12 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext
 import org.apache.spark.sql.sources.{ OutputWriter, OutputWriterFactory }
 import org.apache.spark.sql.types.StructType
 
-private[las] class LasOutputWriterFactory extends OutputWriterFactory {
+private[las] class LasOutputWriterFactory(format: Byte) extends OutputWriterFactory {
 
   override def newInstance(
     path: String,
     dataSchema: StructType,
     context: TaskAttemptContext
   ): OutputWriter =
-    new LasOutputWriter(path, context, StructType(dataSchema.filter(_.name != "id")))
+    new LasOutputWriter(path, context, dataSchema, format)
 }

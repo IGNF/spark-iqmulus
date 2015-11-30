@@ -27,5 +27,5 @@ private[ply] class PlyOutputWriterFactory(element: String, littleEndian: Boolean
     dataSchema: StructType,
     context: TaskAttemptContext
   ): OutputWriter =
-    new PlyOutputWriter(path, context, StructType(dataSchema.filter(_.name != "id")), element, littleEndian)
+    new PlyOutputWriter(path, context, dataSchema, element, littleEndian)
 }

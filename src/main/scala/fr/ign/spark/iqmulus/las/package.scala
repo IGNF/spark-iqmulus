@@ -28,6 +28,7 @@ package object las {
    */
   implicit class LasDataFrameWriter(writer: DataFrameWriter) {
     def las: String => Unit = writer.format("fr.ign.spark.iqmulus.las").save
+    def pdf(format: Byte): LasDataFrameWriter = writer.option("format", format.toString)
   }
 
   /**
@@ -46,18 +47,18 @@ package object las {
       scale: Array[Double] = Array(0.01, 0.01, 0.01),
       offset: Array[Double] = Array(0, 0, 0)
     ) = {
-      val dfna = df.drop("id")
-      val fieldSet = dfna.schema.fields.toSet
+      val df_id = df.drop("id")
+      val fieldSet = df_id.schema.fields.toSet
       def subSchema(schema: StructType) = fieldSet subsetOf schema.fields.toSet
       val format = formatOpt.getOrElse((LasHeader.schema indexWhere subSchema).toByte)
       if (format == -1) {
         sys.error(s"dataframe schema is not a subset of any LAS format schema")
       }
       val schema = LasHeader.schema(format) // no user types for now
-      val cols = schema.fieldNames.intersect(df.schema.fieldNames)
+      val cols = schema.fieldNames.intersect(df_id.schema.fieldNames)
       val saver = (key: Int, iter: Iterator[Row]) =>
         Iterator(iter.saveAsLas(s"$location/$key.las", schema, format, scale, offset, version))
-      dfna.select(cols.head, cols.tail: _*).rdd.mapPartitionsWithIndex(saver, true).collect
+      df_id.select(cols.head, cols.tail: _*).rdd.mapPartitionsWithIndex(saver, true).collect
     }
   }
 

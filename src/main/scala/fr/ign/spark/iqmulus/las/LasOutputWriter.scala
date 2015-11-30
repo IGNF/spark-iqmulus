@@ -31,7 +31,7 @@ import fr.ign.spark.iqmulus.RowOutputStream
 class LasOutputWriter(
   name: String,
   context: TaskAttemptContext,
-  schema: StructType,
+  dataSchema: StructType,
   format: Byte = 0,
   offset: Array[Double] = Array(0F, 0F, 0F),
   scale: Array[Double] = Array(0.01F, 0.01F, 0.01F)
@@ -41,19 +41,21 @@ class LasOutputWriter(
   private val file = {
     val path = getDefaultWorkFile("/1.pdr")
     val fs = path.getFileSystem(context.getConfiguration)
+    println(path)
+    println(format)
+    dataSchema foreach println
     fs.create(path)
   }
 
   private val pmin = Array.fill[Double](3)(Double.PositiveInfinity)
   private val pmax = Array.fill[Double](3)(Double.NegativeInfinity)
   private val countByReturn = Array.fill[Long](15)(0)
-
-  private def header = {
-    val count = countByReturn.sum
+  private def count = countByReturn.sum
+  private val schema = LasHeader.schema(format)
+  private def header =
     new LasHeader(name, format, count, pmin, pmax, scale, offset, countByReturn)
-  }
 
-  private val recordWriter = new RowOutputStream(new DataOutputStream(file), littleEndian = true, schema)
+  private val recordWriter = new RowOutputStream(new DataOutputStream(file), littleEndian = true, schema, dataSchema)
 
   def getDefaultWorkFile(extension: String): Path = {
     val uniqueWriteJobId = context.getConfiguration.get("spark.sql.sources.writeJobUUID")
@@ -63,6 +65,7 @@ class LasOutputWriter(
   }
 
   override def write(row: Row): Unit = {
+    if (count == 0) row.schema foreach println
     recordWriter.write(row)
     val x = offset(0) + scale(0) * row.getAs[Int]("x").toDouble
     val y = offset(1) + scale(1) * row.getAs[Int]("y").toDouble

@@ -3,8 +3,12 @@
 *.las
 *.ply
 
+src/test/resources
+
+
 # sbt specific
 .cache
+.cache-*
 .history
 .lib/
 dist/*
@@ -13,6 +17,10 @@ lib_managed/
 src_managed/
 project/boot/
 project/plugins/project/
+.project
+.settings/
+.classpath
+metastore_db/
 
 # Scala-IDE specific
 .scala_dependencies

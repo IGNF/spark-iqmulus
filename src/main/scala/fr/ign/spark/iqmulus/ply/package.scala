@@ -39,11 +39,11 @@ package object ply {
 
   implicit class PlyDataFrame(df: DataFrame) {
     def saveAsPly(location: String, littleEndian: Boolean = true) = {
-      val df2 = df.drop("id")
-      val schema = df2.schema
+      val df_id = df.drop("id")
+      val schema = df_id.schema
       val saver = (key: Int, iter: Iterator[Row]) =>
         Iterator(iter.saveAsPly(s"$location/$key.ply", schema, littleEndian))
-      df2.rdd.mapPartitionsWithIndex(saver, true).collect
+      df_id.rdd.mapPartitionsWithIndex(saver, true).collect
     }
   }
 

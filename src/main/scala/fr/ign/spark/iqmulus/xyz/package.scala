@@ -39,11 +39,11 @@ package object xyz {
 
   implicit class XyzDataFrame(df: DataFrame) {
     def saveAsXyz(location: String) = {
-      val df2 = df.drop("id")
-      require(df2.schema.fieldNames.take(3) sameElements Array("x", "y", "z"))
-      require(df2.schema.fields.map(_.dataType).take(3).forall(_ == FloatType))
+      val df_id = df.drop("id")
+      require(df_id.schema.fieldNames.take(3) sameElements Array("x", "y", "z"))
+      require(df_id.schema.fields.map(_.dataType).take(3).forall(_ == FloatType))
       val saver = (key: Int, iter: Iterator[Row]) => Iterator(iter.saveXyz(s"$location/$key.xyz"))
-      df2.rdd.mapPartitionsWithIndex(saver, true).collect
+      df_id.rdd.mapPartitionsWithIndex(saver, true).collect
     }
   }
 

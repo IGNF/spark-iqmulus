@@ -31,7 +31,7 @@ import fr.ign.spark.iqmulus.RowOutputStream
 class PlyOutputWriter(
   name: String,
   context: TaskAttemptContext,
-  schema: StructType,
+  dataSchema: StructType,
   element: String,
   littleEndian: Boolean
 )
@@ -45,7 +45,9 @@ class PlyOutputWriter(
 
   private var count = 0L
 
-  private val recordWriter = new RowOutputStream(new DataOutputStream(file), littleEndian, schema)
+  private val schema = StructType(dataSchema.filter { _.name != "id" })
+
+  private val recordWriter = new RowOutputStream(new DataOutputStream(file), littleEndian, schema, dataSchema)
 
   def getDefaultWorkFile(extension: String): Path = {
     val uniqueWriteJobId = context.getConfiguration.get("spark.sql.sources.writeJobUUID")

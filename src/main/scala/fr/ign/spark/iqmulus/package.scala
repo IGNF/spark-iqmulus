@@ -162,16 +162,26 @@ package object iqmulus {
     }
   }
 
-  case class RowOutputStream(dos: DataOutputStream, littleEndian: Boolean, schema: StructType) {
+  case class RowOutputStream(dos: DataOutputStream, littleEndian: Boolean,
+      schema: StructType, dataSchema: StructType) {
+
+    def this(dos: DataOutputStream, littleEndian: Boolean,
+      schema: StructType) { this(dos, littleEndian, schema, schema) }
     def order = if (littleEndian) ByteOrder.LITTLE_ENDIAN else ByteOrder.BIG_ENDIAN
     val bytes = Array.fill[Byte](schema.map(_.dataType.defaultSize).sum)(0);
     val buffer = ByteBuffer.wrap(bytes).order(order)
+    val datatypeWithIndex = schema.fields.map(f =>
+      (f.dataType, dataSchema.indexWhere(g => g.name == f.name && g.dataType == f.dataType)))
+
+    //dos writeBytes schema.mkString("=schema=\n", "\n", "\n\n")
+    //dos writeBytes dataSchema.mkString("=dataSchema=\n", "\n", "\n\n")
+    //dos writeBytes datatypeWithIndex.mkString("=datatypeWithIndex=\n", "\n", "\n\n")
+    //require(datatypeWithIndex.forall(_._2 != -1))
 
     def write(row: Row) = {
-      buffer.position(0)
-      def typeIndex(f: StructField) = (f.dataType, row.schema.fields.indexWhere(_.name == f.name))
-      schema.fields.map(typeIndex).foreach {
-        case (_, -1) => ()
+      buffer.rewind
+      datatypeWithIndex.foreach {
+        case (dataType, -1) => buffer position (buffer.position + dataType.defaultSize)
         case (ByteType, i) => buffer put (row.getByte(i))
         case (ShortType, i) => buffer putShort (row.getShort(i))
         case (IntegerType, i) => buffer putInt (row.getInt(i))

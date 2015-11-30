@@ -133,9 +133,9 @@ object PlyHeader {
     val pb = new PushbackReader(new InputStreamReader(in), 5)
     val br = new BufferedReader(pb)
     var littleEndian = false
-    var comments = Seq[String]()
-    var obj_info = Seq[String]()
-    var elements = Seq[PlyElement]()
+    var comments = Seq.empty[String]
+    var obj_info = Seq.empty[String]
+    var elements = Seq.empty[PlyElement]
     val line1 = "ply\r\n".toArray
     var nread = pb.read(line1, 0, 5)
     val nl = if (nread == 5 && "\r\n".contains(line1(4))) 2 else 1

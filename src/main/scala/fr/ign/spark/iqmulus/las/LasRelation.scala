@@ -47,7 +47,7 @@ class LasRelation(
   override def sections: Array[BinarySection] = headers.map(_.toBinarySection)
 
   override def prepareJobForWrite(job: Job): OutputWriterFactory = {
-    new LasOutputWriterFactory
+    new LasOutputWriterFactory(parameters("pdf").toByte)
   }
 }
 
