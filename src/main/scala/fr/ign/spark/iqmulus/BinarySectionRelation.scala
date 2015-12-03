@@ -54,18 +54,22 @@ case class BinarySection(
   val schema = StructType(StructField(idName, LongType, false) +: _schema.fields)
 
   val fieldOffsetMap: Map[String, (StructField, Int)] =
-    (schema.fields.tail zip offsets) map (x => (x._1.name, x)) toMap
+    (schema.fields.tail zip offsets).map(x => (x._1.name, x)).toMap.withDefault(name => (StructField(name, NullType, nullable = true), -1))
 
   def order = if (littleEndian) ByteOrder.LITTLE_ENDIAN else ByteOrder.BIG_ENDIAN
   def toBuffer(bytes: BytesWritable): ByteBuffer = ByteBuffer.wrap(bytes.getBytes).order(order)
 
-  def bytesSeq(prop: Seq[(DataType, (StructField, Int))]): Seq[ByteBuffer => Any] =
+  def bytesSeq(prop: Seq[(DataType, (StructField, Int))]): Seq[(ByteBuffer, Long) => Any] =
     prop map {
+      case (LongType, (StructField(name, _, _, _), _)) if name == idName => (bytes: ByteBuffer, key: Long) => key
+      case (targetType, (StructField(name, _, _, _), _)) if name == idName => (bytes: ByteBuffer, key: Long) => {
+        new IQmulusCast(Literal(key), targetType).nullSafeEval(key)
+      }
       case (targetType, (sourceField, offset)) =>
         sourceField.dataType match {
-          case sourceType if sourceType == targetType => sourceField.get(offset)
-          case NullType => bytes: ByteBuffer => null
-          case sourceType => bytes: ByteBuffer => {
+          case NullType => (bytes: ByteBuffer, key: Long) => null
+          case sourceType if sourceType == targetType => (bytes: ByteBuffer, key: Long) => sourceField.get(offset)(bytes)
+          case sourceType => (bytes: ByteBuffer, key: Long) => {
             val value = sourceField.get(offset)(bytes)
             val cast = new IQmulusCast(Literal(value), targetType)
             cast.nullSafeEval(value)
@@ -73,21 +77,20 @@ case class BinarySection(
         }
     }
 
-  def getSeqAux(prop: Seq[(DataType, (StructField, Int))], id: Boolean = true)(key: LongWritable, bytes: BytesWritable): Seq[Any] =
+  def getSeqAux(prop: Seq[(DataType, (StructField, Int))])(key: LongWritable, bytes: BytesWritable): Seq[Any] =
     {
-      val seq = (bytesSeq(prop) map (_(toBuffer(bytes))))
-      if (id) (key.get +: seq) else seq
+      (bytesSeq(prop) map (_(toBuffer(bytes), key.get)))
     }
 
   def getSubSeq(dataSchema: StructType, requiredColumns: Array[String]) = {
-    val fieldsWithOffsets = dataSchema.fields.tail.map(field => (
-      field.dataType,
-      fieldOffsetMap.getOrElse(field.name, (StructField(field.name, NullType, nullable = true), 0))
-    ))
+    val fieldsWithOffsets = dataSchema.map(field => (field.dataType, fieldOffsetMap(field.name)))
+    /*
     val requiredFieldsWithOffsets = fieldsWithOffsets filter {
       case (_, (f, _)) => (requiredColumns contains f.name)
     }
-    getSeqAux(requiredFieldsWithOffsets, requiredColumns contains idName) _
+    */
+    val requiredFieldsWithOffsets = requiredColumns map (col => fieldsWithOffsets.find(_._2._1.name == col).get)
+    getSeqAux(requiredFieldsWithOffsets) _
   }
 }
 
