@@ -17,8 +17,8 @@ import fr.ign.spark.iqmulus.ply._
 		
 val sqlContext = new SQLContext(sc)
 
-// The Avro records get converted to Spark types, filtered, and
-// then written back out as Avro records
+// The Lidar points are read, filtered
+// and saved back to a new ply file(s)
 val df = sqlContext.read.ply("myfile.ply")
-df.filter("x > 0").write.ply("/tmp/out")
+df.filter("x > 0").write.ply("/tmp/outdir")
 ```
