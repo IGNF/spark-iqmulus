@@ -173,11 +173,6 @@ package object iqmulus {
     val datatypeWithIndex = schema.fields.map(f =>
       (f.dataType, dataSchema.indexWhere(g => g.name == f.name && g.dataType == f.dataType)))
 
-    //dos writeBytes schema.mkString("=schema=\n", "\n", "\n\n")
-    //dos writeBytes dataSchema.mkString("=dataSchema=\n", "\n", "\n\n")
-    //dos writeBytes datatypeWithIndex.mkString("=datatypeWithIndex=\n", "\n", "\n\n")
-    //require(datatypeWithIndex.forall(_._2 != -1))
-
     def write(row: Row) = {
       buffer.rewind
       datatypeWithIndex.foreach {
