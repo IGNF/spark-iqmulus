@@ -8,3 +8,17 @@ A library for reading and writing Lidar point cloud collections in PLY, LAS and 
 ## Requirements
 
 This Spark package is for Spark 1.5+.
+
+## Scala API
+
+```scala
+// import needed for the .avro method to be added
+import fr.ign.spark.iqmulus.ply._
+		
+val sqlContext = new SQLContext(sc)
+
+// The Avro records get converted to Spark types, filtered, and
+// then written back out as Avro records
+val df = sqlContext.read.ply("myfile.ply")
+df.filter("x > 0").write.ply("/tmp/out")
+```
