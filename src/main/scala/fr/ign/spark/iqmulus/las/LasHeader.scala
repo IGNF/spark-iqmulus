@@ -309,7 +309,7 @@ object LasHeader {
 
   def formatFromSchema(schema: StructType): Byte =
     {
-      val fieldSet = schema.fields.toSet - "id"
+      val fieldSet = schema.fields.toSet - "pid" - "fid"
       def subSchema(schema: StructType) = fieldSet subsetOf schema.fields.toSet
       val format = (LasHeader.schema indexWhere subSchema).toByte
       if (format == -1) {

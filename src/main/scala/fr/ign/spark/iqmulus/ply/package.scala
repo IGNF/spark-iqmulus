@@ -39,7 +39,7 @@ package object ply {
 
   implicit class PlyDataFrame(df: DataFrame) {
     def saveAsPly(location: String, littleEndian: Boolean = true) = {
-      val df_id = df.drop("id")
+      val df_id = df.drop("pid").drop("fid")
       val schema = df_id.schema
       val saver = (key: Int, iter: Iterator[Row]) =>
         Iterator(iter.saveAsPly(s"$location/$key.ply", schema, littleEndian))

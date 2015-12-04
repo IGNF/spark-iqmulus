@@ -43,7 +43,8 @@ case class BinarySection(
     littleEndian: Boolean,
     private val _schema: StructType,
     private val _stride: Int = 0,
-    idName: String = "id"
+    pidName: String = "pid",
+    fidName: String = "fid"
 ) {
 
   val sizes = _schema.fields.map(_.dataType.defaultSize)
@@ -51,25 +52,29 @@ case class BinarySection(
   val length = offsets.last
   val stride = if (_stride > 0) _stride else length
   def size: Long = stride * count
-  val schema = StructType(StructField(idName, LongType, false) +: _schema.fields)
+  val schema = StructType(StructField(fidName, IntegerType, false) +: StructField(pidName, LongType, false) +: _schema.fields)
 
   val fieldOffsetMap: Map[String, (StructField, Int)] =
-    (schema.fields.tail zip offsets).map(x => (x._1.name, x)).toMap.withDefault(name => (StructField(name, NullType, nullable = true), -1))
+    (_schema.fields zip offsets).map(x => (x._1.name, x)).toMap.withDefault(name => (StructField(name, NullType, nullable = true), -1))
 
   def order = if (littleEndian) ByteOrder.LITTLE_ENDIAN else ByteOrder.BIG_ENDIAN
   def toBuffer(bytes: BytesWritable): ByteBuffer = ByteBuffer.wrap(bytes.getBytes).order(order)
 
-  def bytesSeq(prop: Seq[(DataType, (StructField, Int))]): Seq[(ByteBuffer, Long) => Any] =
+  def bytesSeq(fid: Int, prop: Seq[(DataType, (StructField, Int))]): Seq[(Long, ByteBuffer) => Any] =
     prop map {
-      case (LongType, (StructField(name, _, _, _), _)) if name == idName => (bytes: ByteBuffer, key: Long) => key
-      case (targetType, (StructField(name, _, _, _), _)) if name == idName => (bytes: ByteBuffer, key: Long) => {
-        new IQmulusCast(Literal(key), targetType).nullSafeEval(key)
+      case (LongType, (StructField(name, _, _, _), _)) if name == pidName => (pid: Long, bytes: ByteBuffer) => pid
+      case (targetType, (StructField(name, _, _, _), _)) if name == pidName => (pid: Long, bytes: ByteBuffer) => {
+        new IQmulusCast(Literal(pid), targetType).nullSafeEval(pid)
+      }
+      case (LongType, (StructField(name, _, _, _), _)) if name == fidName => (pid: Long, bytes: ByteBuffer) => fid
+      case (targetType, (StructField(name, _, _, _), _)) if name == fidName => (pid: Long, bytes: ByteBuffer) => {
+        new IQmulusCast(Literal(fid), targetType).nullSafeEval(fid)
       }
       case (targetType, (sourceField, offset)) =>
         sourceField.dataType match {
-          case NullType => (bytes: ByteBuffer, key: Long) => null
-          case sourceType if sourceType == targetType => (bytes: ByteBuffer, key: Long) => sourceField.get(offset)(bytes)
-          case sourceType => (bytes: ByteBuffer, key: Long) => {
+          case NullType => (pid: Long, bytes: ByteBuffer) => null
+          case sourceType if sourceType == targetType => (pid: Long, bytes: ByteBuffer) => sourceField.get(offset)(bytes)
+          case sourceType => (pid: Long, bytes: ByteBuffer) => {
             val value = sourceField.get(offset)(bytes)
             val cast = new IQmulusCast(Literal(value), targetType)
             cast.nullSafeEval(value)
@@ -77,12 +82,12 @@ case class BinarySection(
         }
     }
 
-  def getSeqAux(prop: Seq[(DataType, (StructField, Int))])(key: LongWritable, bytes: BytesWritable): Seq[Any] =
+  def getSeqAux(fid: Int, prop: Seq[(DataType, (StructField, Int))])(key: LongWritable, bytes: BytesWritable): Seq[Any] =
     {
-      (bytesSeq(prop) map (_(toBuffer(bytes), key.get)))
+      (bytesSeq(fid, prop) map (_(key.get, toBuffer(bytes))))
     }
 
-  def getSubSeq(dataSchema: StructType, requiredColumns: Array[String]) = {
+  def getSubSeq(fid: Int, dataSchema: StructType, requiredColumns: Array[String]) = {
     val fieldsWithOffsets = dataSchema.map(field => (field.dataType, fieldOffsetMap(field.name)))
     /*
     val requiredFieldsWithOffsets = fieldsWithOffsets filter {
@@ -90,7 +95,7 @@ case class BinarySection(
     }
     */
     val requiredFieldsWithOffsets = requiredColumns map (col => fieldsWithOffsets.find(_._2._1.name == col).get)
-    getSeqAux(requiredFieldsWithOffsets) _
+    getSeqAux(fid, requiredFieldsWithOffsets) _
   }
 }
 
@@ -133,7 +138,7 @@ abstract class BinarySectionRelation(
       classOf[LongWritable],
       classOf[BytesWritable]
     )
-    rdd.map({ case (id, bytes) => Row.fromSeq(toSeq(id, bytes)) })
+    rdd.map({ case (pid, bytes) => Row.fromSeq(toSeq(pid, bytes)) })
   }
 
   override def buildScan(requiredColumns: Array[String], inputs: Array[FileStatus]): RDD[Row] = {
@@ -144,7 +149,7 @@ abstract class BinarySectionRelation(
       val requiredSections = sections.filter(sec => requiredFilenames contains sec.location)
       new UnionRDD[Row](
         sqlContext.sparkContext,
-        requiredSections.map { sec => baseRDD(sec, sec.getSubSeq(dataSchema, requiredColumns)) }
+        requiredSections.map { sec => baseRDD(sec, sec.getSubSeq(paths.indexOf(sec.location), dataSchema, requiredColumns)) }
       )
     }
   }

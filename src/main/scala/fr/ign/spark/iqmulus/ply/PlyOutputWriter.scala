@@ -45,7 +45,7 @@ class PlyOutputWriter(
 
   private var count = 0L
 
-  private val schema = StructType(dataSchema.filter { _.name != "id" })
+  private val schema = StructType(dataSchema.filterNot { Seq("fid", "pid") contains _.name })
 
   private val recordWriter = new RowOutputStream(new DataOutputStream(file), littleEndian, schema, dataSchema)
 
