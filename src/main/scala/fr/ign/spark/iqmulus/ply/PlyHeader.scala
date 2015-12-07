@@ -71,6 +71,13 @@ case class PlyElement(
     BinarySection(location, offset, count, littleEndian, schema)
 
   override def toString = "element " + name + " " + count + "\n" + properties.mkString
+
+  def merge(that: PlyElement) = {
+    require(this.properties sameElements that.properties)
+    require(this.name == that.name)
+    require(this.littleEndian == that.littleEndian)
+    copy(count = this.count + that.count)
+  }
 }
 
 case class PlyHeader(
@@ -123,11 +130,28 @@ case class PlyHeader(
     this(location, littleEndian, schemas, Seq.empty[String], Seq.empty[String])
   }
 
+  def merge(that: PlyHeader) = {
+    require(this.littleEndian == that.littleEndian)
+    require(this.elements.length == that.elements.length)
+    val zippedElements = this.elements.zip(that.elements)
+    require(zippedElements.forall { case (x, y) => x.name == y.name })
+    new PlyHeader(
+      "",
+      littleEndian,
+      0,
+      zippedElements.map { case (x, y) => x merge y },
+      this.obj_info ++ that.obj_info,
+      this.comments ++ that.comments
+    )
+  }
 }
 
 object PlyHeader {
   def read(location: String): Option[PlyHeader] =
     read(location, new FileInputStream(location))
+
+  def read(path: org.apache.hadoop.fs.Path): Option[PlyHeader] =
+    read(org.apache.hadoop.fs.Path.getPathWithoutSchemeAndAuthority(path).toString)
 
   def read(location: String, in: java.io.InputStream): Option[PlyHeader] = {
     val pb = new PushbackReader(new InputStreamReader(in), 5)

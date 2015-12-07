@@ -104,11 +104,11 @@ case class BinarySection(
  * @param TODO
  */
 abstract class BinarySectionRelation(
-  dataSchemaOpt: Option[StructType],
-  partitionColumns: Option[StructType],
   parameters: Map[String, String]
 )
-    extends HadoopFsRelation with Logging {
+    extends HadoopFsRelation {
+
+  def maybeDataSchema: Option[StructType] = None
 
   def sections: Array[BinarySection]
 
@@ -116,7 +116,7 @@ abstract class BinarySectionRelation(
    * Determine the RDD Schema based on the se header info.
    * @return StructType instance
    */
-  override lazy val dataSchema: StructType = dataSchemaOpt match {
+  override lazy val dataSchema: StructType = maybeDataSchema match {
     case Some(structType) => structType
     case None => if (sections.isEmpty) StructType(Nil) else sections.map(_.schema).reduce(_ merge _)
   }

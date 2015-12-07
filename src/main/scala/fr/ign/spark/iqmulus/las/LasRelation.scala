@@ -25,11 +25,11 @@ import org.apache.spark.sql.types._
 
 class LasRelation(
   override val paths: Array[String],
-  dataSchemaOpt: Option[StructType],
-  partitionColumns: Option[StructType],
+  override val maybeDataSchema: Option[StructType],
+  override val userDefinedPartitionColumns: Option[StructType],
   parameters: Map[String, String]
 )(@transient val sqlContext: SQLContext)
-    extends BinarySectionRelation(dataSchemaOpt, partitionColumns, parameters) {
+    extends BinarySectionRelation(parameters) {
 
   def format = parameters.get("lasformat").map(_.toByte)
   def minor = parameters.get("minor").map(_.toByte).getOrElse(Version.minorDefault)

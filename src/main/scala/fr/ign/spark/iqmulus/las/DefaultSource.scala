@@ -21,6 +21,9 @@ import org.apache.spark.sql.sources.{ HadoopFsRelation, HadoopFsRelationProvider
 import org.apache.spark.sql.types.StructType
 
 class DefaultSource extends HadoopFsRelationProvider {
+
+  // override def shortName(): String = "las"
+
   override def createRelation(
     sqlContext: SQLContext,
     paths: Array[String],

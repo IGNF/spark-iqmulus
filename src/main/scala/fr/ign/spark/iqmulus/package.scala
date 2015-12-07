@@ -19,7 +19,7 @@ package fr.ign.spark
 import org.apache.spark.sql.{ Row, SQLContext, DataFrame }
 
 import org.apache.spark.rdd.UnionRDD
-import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.{ FileSystem, Path, FileStatus }
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.types._
 import java.nio.{ ByteBuffer, ByteOrder }
@@ -191,5 +191,35 @@ package object iqmulus {
 
     def close = dos.close
   }
+
+  def copyMerge(
+    srcFS: FileSystem, contents: Array[FileStatus],
+    dstFS: FileSystem, dstFile: Path,
+    deleteSource: Boolean,
+    conf: Configuration, addString: String
+  ) = {
+    val out = dstFS.create(dstFile);
+
+    try {
+      for (content <- contents) {
+        if (!content.isDirectory) {
+          val in = srcFS.open(content.getPath);
+          try {
+            org.apache.hadoop.io.IOUtils.copyBytes(in, out, conf, false);
+            if (addString != null)
+              out.write(addString.getBytes("UTF-8"));
+
+          } finally {
+            in.close();
+          }
+        }
+        if (deleteSource) srcFS.delete(content.getPath, true)
+      }
+    } finally {
+      out.close();
+    }
+
+  }
+
 }
 

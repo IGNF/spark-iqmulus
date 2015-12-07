@@ -42,10 +42,15 @@ object XyzRelation {
 
 }
 
-class XyzRelation(override val paths: Array[String], val dataSchemaOpt: Option[StructType])(@transient val sqlContext: SQLContext)
-    extends HadoopFsRelation with org.apache.spark.Logging {
+class XyzRelation(
+  override val paths: Array[String],
+  maybeDataSchema: Option[StructType],
+  override val userDefinedPartitionColumns: Option[StructType],
+  parameters: Map[String, String]
+)(@transient val sqlContext: SQLContext)
+    extends HadoopFsRelation {
 
-  override lazy val dataSchema = dataSchemaOpt.getOrElse(XyzRelation.xyzrgbSchema)
+  override lazy val dataSchema = maybeDataSchema.getOrElse(XyzRelation.xyzrgbSchema)
 
   override def prepareJobForWrite(job: org.apache.hadoop.mapreduce.Job): org.apache.spark.sql.sources.OutputWriterFactory = ???
 

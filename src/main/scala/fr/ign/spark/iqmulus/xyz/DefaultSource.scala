@@ -21,6 +21,9 @@ import org.apache.spark.sql.sources.{ HadoopFsRelation, HadoopFsRelationProvider
 import org.apache.spark.sql.types.StructType
 
 class DefaultSource extends HadoopFsRelationProvider {
+
+  // override def shortName(): String = "xyz"
+
   override def createRelation(
     sqlContext: SQLContext,
     paths: Array[String],
@@ -28,6 +31,6 @@ class DefaultSource extends HadoopFsRelationProvider {
     partitionColumns: Option[StructType],
     parameters: Map[String, String]
   ): HadoopFsRelation = {
-    new XyzRelation(paths, dataSchema)(sqlContext)
+    new XyzRelation(paths, dataSchema, partitionColumns, parameters)(sqlContext)
   }
 }

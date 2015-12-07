@@ -17,10 +17,10 @@
 package fr.ign.spark.iqmulus.ply
 
 import org.apache.spark.sql.types._
-import org.apache.hadoop.mapreduce.{ TaskAttemptID, RecordWriter, TaskAttemptContext }
+import org.apache.hadoop.mapreduce.{ TaskAttemptID, RecordWriter, TaskAttemptContext, JobContext }
+import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter
 import java.io.DataOutputStream
 import org.apache.spark.sql.sources.OutputWriter
-import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.hadoop.io.{ NullWritable, BytesWritable }
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat
 import org.apache.hadoop.fs.Path
@@ -38,7 +38,7 @@ class PlyOutputWriter(
     extends OutputWriter {
 
   private val file = {
-    val path = getDefaultWorkFile(s"/1.$element")
+    val path = getDefaultWorkFile(s".ply.$element")
     val fs = path.getFileSystem(context.getConfiguration)
     fs.create(path)
   }
@@ -65,18 +65,19 @@ class PlyOutputWriter(
     recordWriter.close
 
     // write header
-    val path = getDefaultWorkFile("/0.header")
+    val path = getDefaultWorkFile(".ply.header")
     val fs = path.getFileSystem(context.getConfiguration)
     val dos = new java.io.DataOutputStream(fs.create(path))
     val header = new PlyHeader(path.toString, littleEndian, Map(element -> ((count, schema))))
     header.write(dos)
     dos.close
-
+    /*
     // copy header and pdf to a final las file (1 per split)
     org.apache.hadoop.fs.FileUtil.copyMerge(
       fs, getDefaultWorkFile("/"),
       fs, getDefaultWorkFile(".ply"),
       true, context.getConfiguration, ""
     )
+*/
   }
 }
