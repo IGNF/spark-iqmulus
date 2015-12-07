@@ -206,8 +206,9 @@ package object iqmulus {
           val in = srcFS.open(content.getPath);
           try {
             org.apache.hadoop.io.IOUtils.copyBytes(in, out, conf, false);
-            if (addString != null)
-              out.write(addString.getBytes("UTF-8"));
+            if (addString != null) {
+              out.write(addString.getBytes("UTF-8"))
+            }
 
           } finally {
             in.close();
