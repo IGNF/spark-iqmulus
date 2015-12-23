@@ -45,6 +45,7 @@ class PlyOutputWriter(
 
   private var count = 0L
 
+  // strip out ids
   private val schema = StructType(dataSchema.filterNot { Seq("fid", "pid") contains _.name })
 
   private val recordWriter = new RowOutputStream(new DataOutputStream(file), littleEndian, schema, dataSchema)
@@ -71,13 +72,5 @@ class PlyOutputWriter(
     val header = new PlyHeader(path.toString, littleEndian, Map(element -> ((count, schema))))
     header.write(dos)
     dos.close
-    /*
-    // copy header and pdf to a final las file (1 per split)
-    org.apache.hadoop.fs.FileUtil.copyMerge(
-      fs, getDefaultWorkFile("/"),
-      fs, getDefaultWorkFile(".ply"),
-      true, context.getConfiguration, ""
-    )
-*/
   }
 }

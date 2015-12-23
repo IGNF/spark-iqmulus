@@ -193,28 +193,26 @@ package object iqmulus {
   }
 
   def copyMerge(
-    srcFS: FileSystem, contents: Array[FileStatus],
+    srcFS: FileSystem, contents: Array[Any],
     dstFS: FileSystem, dstFile: Path,
     deleteSource: Boolean,
-    conf: Configuration, addString: String
+    conf: Configuration
   ) = {
     val out = dstFS.create(dstFile);
 
     try {
-      for (content <- contents) {
-        if (!content.isDirectory) {
-          val in = srcFS.open(content.getPath);
-          try {
-            org.apache.hadoop.io.IOUtils.copyBytes(in, out, conf, false);
-            if (addString != null) {
-              out.write(addString.getBytes("UTF-8"))
+      contents foreach {
+        case content: String => out.writeBytes(content)
+        case content: FileStatus =>
+          if (!content.isDirectory) {
+            val in = srcFS.open(content.getPath);
+            try {
+              org.apache.hadoop.io.IOUtils.copyBytes(in, out, conf, false);
+            } finally {
+              in.close();
             }
-
-          } finally {
-            in.close();
           }
-        }
-        if (deleteSource) srcFS.delete(content.getPath, true)
+          if (deleteSource) srcFS.delete(content.getPath, true)
       }
     } finally {
       out.close();

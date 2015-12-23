@@ -116,10 +116,16 @@ abstract class BinarySectionRelation(
    * Determine the RDD Schema based on the se header info.
    * @return StructType instance
    */
-  override lazy val dataSchema: StructType = maybeDataSchema match {
+  override lazy val dataSchema: StructType = StructType((maybeDataSchema match {
     case Some(structType) => structType
     case None => if (sections.isEmpty) StructType(Nil) else sections.map(_.schema).reduce(_ merge _)
-  }
+  }).map(
+    field => if (field.name == "fid") {
+      val builder = new MetadataBuilder().withMetadata(field.metadata)
+      val metadata = builder.putStringArray("paths", paths).build
+      field.copy(metadata = metadata)
+    } else field
+  ))
 
   override def prepareJobForWrite(job: org.apache.hadoop.mapreduce.Job): org.apache.spark.sql.sources.OutputWriterFactory = ???
 
@@ -145,11 +151,16 @@ abstract class BinarySectionRelation(
     if (inputs.isEmpty) {
       sqlContext.sparkContext.emptyRDD[Row]
     } else {
-      val requiredFilenames = inputs.map(_.getPath.toString)
-      val requiredSections = sections.filter(sec => requiredFilenames contains sec.location)
+      val inputLocations = inputs.map(_.getPath.toString)
+      val requiredSections = sections.filter(sec => inputLocations contains sec.location)
       new UnionRDD[Row](
         sqlContext.sparkContext,
-        requiredSections.map { sec => baseRDD(sec, sec.getSubSeq(paths.indexOf(sec.location), dataSchema, requiredColumns)) }
+        requiredSections.map { sec =>
+          baseRDD(sec, sec.getSubSeq(
+            paths.indexOf(sec.location),
+            schema, requiredColumns
+          ))
+        }
       )
     }
   }

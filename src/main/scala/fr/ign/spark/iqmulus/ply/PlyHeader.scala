@@ -181,9 +181,11 @@ object PlyHeader {
               case ("binary_big_endian", "1.0") => false
               case _ =>
                 println(s"$location : PLY file with unsupported format ($line), skipping");
+                br.close
                 return None
             }
           case (1, "end_header") =>
+            br.close
             return Some(PlyHeader(location, littleEndian, offset, elements, obj_info, comments))
           case (_, "comment") => comments :+= line;
           case (_, "obj_info") => obj_info :+= words.tail.mkString(" ");
@@ -194,6 +196,7 @@ object PlyHeader {
         line = br.readLine
       }
       println(s"$location : truncated header")
+      br.close
       None
     }
   }

@@ -35,26 +35,22 @@ class PlyOutputCommitter(
     super.commitJob(job);
 
     val conf = job.getConfiguration
-    val inputFiles = conf.getStrings("fr.ign.spark.iqmulus.inputFiles").map(new Path(_).getName)
-    val inputCol = conf.get("fr.ign.spark.iqmulus.inputCol")
-
-    println(inputCol)
-    inputFiles foreach println
+    val outputFiles = conf.getStrings("fr.ign.spark.iqmulus.outputFiles").map(new Path(_).getName)
+    val outputFilesCol = conf.get("fr.ign.spark.iqmulus.outputFilesCol")
 
     val fs = name.getFileSystem(conf)
     val util = SparkHadoopUtil.get
     for (path <- util.listLeafDirStatuses(fs, name).map(_.getPath)) {
       // get all headers
-      val pattern = new Path(path, "*.ply.header")
-      val paths = util.globPath(pattern)
-      // read all headers
-      val headers = paths.flatMap(PlyHeader.read(_))
-      // unreadable headers are not tackled yet
-      require(headers.length == paths.length)
-      // delete .ply.header files
-      paths.foreach(fs.delete(_, false))
+      val paths = util.globPath(new Path(path, "*.ply.header"))
 
-      val header = headers.reduce(_ merge _)
+      val header = {
+        // read all headers
+        val headers = paths.flatMap(PlyHeader.read(_))
+        // assume all headers have been read successfully
+        require(headers.length == paths.length)
+        headers.reduce(_ merge _)
+      }
       val headerPath = new Path(path, ".header")
       val dos = new java.io.DataOutputStream(fs.create(headerPath))
       header.write(dos)
@@ -64,15 +60,15 @@ class PlyOutputCommitter(
         val split = path.getName.split('=')
         new Path(
           replace(path.getParent),
-          if (split.length != 2 || split(0) != inputCol) path.getName
-          else try { inputFiles(split(1).takeWhile(_.isDigit).toInt) } catch { case _: java.lang.NumberFormatException => path.getName }
+          if (split.length != 2 || split(0) != outputFilesCol) path.getName
+          else try { outputFiles(split(1).takeWhile(_.isDigit).toInt) } catch { case _: java.lang.NumberFormatException => path.getName }
         )
       }
-
+      val elementStatuses = header.elements.map(_.name).flatMap(el => fs.globStatus(new Path(path, s"*.ply.$el")))
       fr.ign.spark.iqmulus.copyMerge(
-        fs, fs.listStatus(headerPath) ++ fs.globStatus(new Path(path, "*.ply.*")),
+        fs, Array(header.toString()) ++ elementStatuses,
         fs, replace(path.suffix(".ply")),
-        false, conf, ""
+        false, conf
       )
       fs.delete(path, true)
     }
@@ -113,12 +109,15 @@ class PlyRelation(
     headers.flatMap(_.section.get(element))
 
   override def prepareJobForWrite(job: Job): OutputWriterFactory = {
+
     job.setOutputFormatClass(classOf[PlyOutputFormat])
 
-    // TODO: get the inputFiles from the dataframe, possibly using the column metadata
-    val inputFiles = Array("file:/test1/test2.ply", "file:/aaa/bbb/ccc.ply")
-    job.getConfiguration.setStrings("fr.ign.spark.iqmulus.inputFiles", inputFiles: _*)
-    job.getConfiguration.set("fr.ign.spark.iqmulus.inputCol", "fid")
+    // look for the outputFile column in all schemas
+    val col = (userDefinedPartitionColumns ++ maybeDataSchema ++ Some(dataSchema))
+      .flatMap(_.find(_.name == "fid")).headOption
+    val outputFiles = col.map(_.metadata.getStringArray("paths")).getOrElse(Array.empty[String])
+    job.getConfiguration.setStrings("fr.ign.spark.iqmulus.outputFiles", outputFiles: _*)
+    job.getConfiguration.set("fr.ign.spark.iqmulus.outputFilesCol", "fid")
     new PlyOutputWriterFactory(element, littleEndian)
   }
 }
