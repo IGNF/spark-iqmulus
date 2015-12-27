@@ -87,7 +87,7 @@ case class LasHeader(
       reader.readFully(bytes)
       val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
       val reserved = buffer.getShort
-      //require(reserved == 0)
+      // require(reserved == 0)
       val userIDBytes = Array.ofDim[Byte](16)
       buffer.get(userIDBytes)
       val userID = new String(userIDBytes takeWhile (_ != 0) map (_.toChar))
@@ -118,7 +118,7 @@ case class LasHeader(
       reader.readFully(bytes)
       val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
       val reserved = buffer.getShort
-      //require(reserved == 0)
+      // require(reserved == 0)
       val userIDBytes = Array.ofDim[Byte](16)
       buffer.get(userIDBytes)
       val userID = new String(userIDBytes takeWhile (_ != 0) map (_.toChar))
