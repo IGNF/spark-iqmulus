@@ -21,7 +21,7 @@ import org.apache.hadoop.io._
 import org.apache.spark.sql.types._
 import fr.ign.spark.iqmulus.BinarySection
 import java.nio.{ ByteBuffer, ByteOrder }
-import java.io.{ InputStream, DataOutputStream, FileInputStream }
+import java.io.{ InputStream, DataOutputStream, FileInputStream, DataInputStream }
 
 case class Version(
     major: Byte = Version.majorDefault,
@@ -72,6 +72,66 @@ case class LasHeader(
     evlr_offset: Long = 0,
     evlr_nb: Int = 0
 ) {
+
+  lazy val vlr = {
+    val in = new FileInputStream(location)
+    val reader = new DataInputStream(in) {
+      def skipFully(n: Long) = {
+        var remaining = n
+        while (remaining > 0) remaining -= skip(remaining)
+      }
+    }
+    reader.skipFully(header_size)
+    for (i <- 1 to vlr_nb) yield {
+      val bytes = Array.ofDim[Byte](54)
+      reader.readFully(bytes)
+      val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+      val reserved = buffer.getShort
+      //require(reserved == 0)
+      val userIDBytes = Array.ofDim[Byte](16)
+      buffer.get(userIDBytes)
+      val userID = new String(userIDBytes takeWhile (_ != 0) map (_.toChar))
+      val recordID = buffer.getShort
+      val recordLength = buffer.getShort
+      val descriptionBytes = Array.ofDim[Byte](32)
+      buffer.get(descriptionBytes)
+      val description = new String(descriptionBytes takeWhile (_ != 0) map (_.toChar))
+      // val record = Array.ofDim[Byte](recordLength)
+      // reader.readFully(record)
+      reader.skipFully(recordLength)
+      println(s"userID     =$userID\nrecordID   =$recordID\ndescription=$description\n")
+      (userID, recordID, description)
+    }
+  }
+
+  lazy val evlr = {
+    val in = new FileInputStream(location)
+    val reader = new DataInputStream(in) {
+      def skipFully(n: Long) = {
+        var remaining = n
+        while (remaining > 0) remaining -= skip(remaining)
+      }
+    }
+    reader.skipFully(evlr_offset)
+    for (i <- 1 to evlr_nb) yield {
+      val bytes = Array.ofDim[Byte](60)
+      reader.readFully(bytes)
+      val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+      val reserved = buffer.getShort
+      //require(reserved == 0)
+      val userIDBytes = Array.ofDim[Byte](16)
+      buffer.get(userIDBytes)
+      val userID = new String(userIDBytes takeWhile (_ != 0) map (_.toChar))
+      val recordID = buffer.getShort
+      val recordLength = buffer.getLong
+      val descriptionBytes = Array.ofDim[Byte](32)
+      buffer.get(descriptionBytes)
+      val description = new String(descriptionBytes takeWhile (_ != 0) map (_.toChar))
+      reader.skipFully(recordLength)
+      println(s"userID     =$userID\nrecordID   =$recordID\ndescription=$description\n")
+      (userID, recordID, description)
+    }
+  }
 
   def schema: StructType = LasHeader.schema(pdr_format)
   def header_size: Short = LasHeader.header_size(version.major)(version.minor)
