@@ -22,15 +22,15 @@ import org.apache.spark.sql.types._
 
 class PlySuite extends FunSuite with ShouldMatchers {
 
-  val id = Array("id" -> LongType)
+  val id = Array("fid" -> IntegerType, "pid" -> LongType)
   val xyz = Array("x" -> FloatType, "y" -> FloatType, "z" -> FloatType)
   val rgb = Array("r" -> ByteType, "g" -> ByteType, "b" -> ByteType)
 
   val files = Seq(
-    ("trepied_xyz.ply", 5995, id ++ xyz),
-    ("trepied_dim.ply", 5995, id ++ xyz ++ rgb),
-    ("trepied_dim2.ply", 5995, id ++ xyz ++ rgb),
-    ("213-232-7.ply", 71651, id ++ xyz ++ rgb)
+    ("trepied_xyz.ply", 5995, id ++ xyz) // ,
+  //   ("trepied_dim.ply", 5995, id ++ xyz ++ rgb),
+  //   ("trepied_dim2.ply", 5995, id ++ xyz ++ rgb),
+  //   ("213-232-7.ply", 71651, id ++ xyz ++ rgb)
   )
 
   val resources = "src/test/resources"
