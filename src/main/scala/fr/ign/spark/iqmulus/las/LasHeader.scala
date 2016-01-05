@@ -21,7 +21,11 @@ import org.apache.hadoop.io._
 import org.apache.spark.sql.types._
 import fr.ign.spark.iqmulus.BinarySection
 import java.nio.{ ByteBuffer, ByteOrder }
-import java.io.{ InputStream, DataOutputStream, FileInputStream, DataInputStream }
+import java.io.{ InputStream, DataOutputStream, FileInputStream, DataInputStream, BufferedInputStream }
+
+import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.FSDataInputStream
+import org.apache.spark.deploy.SparkHadoopUtil
 
 case class Version(
     major: Byte = Version.majorDefault,
@@ -37,6 +41,91 @@ object Version {
     val Array(major, minor) = version.split('.') map (_.toByte)
     Version(major, minor)
   }
+}
+
+case class VariableLengthRecord(bytes: Array[Byte], offset: Long, extended: Boolean) {
+  val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+  def reserved = bytes.slice(0, 2)
+  def userIDBytes = bytes.slice(2, 18)
+  def recordID = buffer.getShort(18)
+  val recordLength = if (extended) buffer.getLong(20) else buffer.getShort(20)
+  def descriptionBytes = if (extended) bytes.slice(28, 60) else bytes.slice(22, 56)
+
+  def userID = new String(userIDBytes takeWhile (_ != 0) map (_.toChar))
+  def description = new String(descriptionBytes takeWhile (_ != 0) map (_.toChar))
+
+  override def toString = s"userID     =$userID\nrecordID   =$recordID\ndescription=$description\n"
+}
+
+import java.nio.{ ByteBuffer, ByteOrder }
+import org.apache.spark.sql.types._
+
+class ExtraBytes(bytes: Array[Byte]) {
+
+  def this(length: Byte) = this(ExtraBytes.defaultBytes.patch(3, Array(length), 1))
+
+  private def getAnyArray(offset: Int) = upcastDataType match {
+    case LongType => getLongArray(offset)
+    case DoubleType => getDoubleArray(offset)
+  }
+  private def getLongArray(offset: Int) = (for (i <- 0 until dim) yield buffer.getLong(offset + 8 * i)).toArray
+  private def getDoubleArray(offset: Int) = (for (i <- 0 until dim) yield buffer.getDouble(offset + 8 * i)).toArray
+
+  private val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+
+  def reserved = bytes.slice(0, 2)
+  def data_type = bytes(2)
+  def options = bytes(3)
+  def nameBytes = bytes.slice(4, 36)
+  def unused = bytes.slice(36, 40)
+  def no_data = getAnyArray(40)
+  def min = getAnyArray(64)
+  def max = getAnyArray(88)
+  def scale = getDoubleArray(112)
+  def offset = getDoubleArray(136)
+  def descBytes = bytes.slice(160, 192)
+
+  def dim = if (data_type == 0) options else (((data_type - 1) / 10) + 1)
+  def typ = if (data_type == 0) 0 else (((data_type - 1) % 10) + 1)
+  def dataType = ExtraBytes.dataType(typ)
+  def upcastDataType = ExtraBytes.upcastDataType(typ)
+
+  def name = new String(nameBytes takeWhile (_ != 0) map (_.toChar))
+  def description = new String(descBytes takeWhile (_ != 0) map (_.toChar))
+
+  def makeField(i: Int) = {
+    val fieldName = if (dim == 1) name else s"$name$i"
+    StructField(fieldName, dataType, false)
+  }
+  def schema = StructType(Array.tabulate(dim)(makeField))
+}
+
+object ExtraBytes {
+  val defaultBytes = {
+    val bytes = Array.ofDim[Byte](192)
+    "ExtraByte".zipWithIndex.foreach { case (c, i) => bytes(4 + i) = c.toByte }
+    "Undefined extra byte".zipWithIndex.foreach { case (c, i) => bytes(160 + i) = c.toByte }
+    bytes
+  }
+  val userIDBytes = "LASF_Spec".getBytes
+  val recordID = 4.toShort
+  val dataType = Array(
+    ByteType,
+    ByteType, ByteType,
+    ShortType, ShortType,
+    IntegerType, IntegerType,
+    LongType, LongType,
+    FloatType, DoubleType
+  )
+
+  val upcastDataType = Array(
+    ByteType,
+    LongType, LongType,
+    LongType, LongType,
+    LongType, LongType,
+    LongType, LongType,
+    DoubleType, DoubleType
+  )
 }
 
 case class ProjectID(
@@ -73,170 +162,109 @@ case class LasHeader(
     evlr_nb: Int = 0
 ) {
 
-  lazy val vlr = {
-    val in = new FileInputStream(location)
-    val reader = new DataInputStream(in) {
-      def skipFully(n: Long) = {
-        var remaining = n
-        while (remaining > 0) remaining -= skip(remaining)
+  def extraBytesSchema = StructType(extraBytes.map(_.schema.fields).fold(Array.empty)(_ ++ _))
+  def customSchema = pdr_length != LasHeader.pdr_length(pdr_format)
+
+  def extraBytes: Array[ExtraBytes] = {
+    if (!customSchema) return Array.empty[ExtraBytes]
+
+    val path = new Path(location)
+    val fs = path.getFileSystem(SparkHadoopUtil.get.conf)
+    val fileInputStream = fs.open(path)
+    val vlrWithBytes = try {
+      for (
+        r <- vlr if r.recordID == ExtraBytes.recordID && (r.userIDBytes sameElements ExtraBytes.userIDBytes)
+      ) yield {
+        fileInputStream.seek(r.offset)
+        val bytes = Array.ofDim[Byte](r.recordLength.toInt)
+        fileInputStream.readFully(bytes)
+        (r, bytes)
       }
+    } finally {
+      fileInputStream.close
+      fs.close
     }
-    reader.skipFully(header_size)
-    for (i <- 1 to vlr_nb) yield {
-      val bytes = Array.ofDim[Byte](54)
-      reader.readFully(bytes)
-      val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-      val reserved = buffer.getShort
-      // require(reserved == 0)
-      val userIDBytes = Array.ofDim[Byte](16)
-      buffer.get(userIDBytes)
-      val userID = new String(userIDBytes takeWhile (_ != 0) map (_.toChar))
-      val recordID = buffer.getShort
-      val recordLength = buffer.getShort
-      val descriptionBytes = Array.ofDim[Byte](32)
-      buffer.get(descriptionBytes)
-      val description = new String(descriptionBytes takeWhile (_ != 0) map (_.toChar))
-      // val record = Array.ofDim[Byte](recordLength)
-      // reader.readFully(record)
-      reader.skipFully(recordLength)
-      println(s"userID     =$userID\nrecordID   =$recordID\ndescription=$description\n")
-      (userID, recordID, description)
+    val res = for ((r, bytes) <- vlrWithBytes; i <- 0 until r.recordLength.toInt by 192)
+      yield new ExtraBytes(bytes.slice(i, i + 192))
+
+    if (res.isEmpty)
+      Array(new ExtraBytes(Math.min(255, pdr_length - LasHeader.pdr_length(pdr_format)).toByte))
+    else
+      res.toArray
+  }
+
+  lazy val vlr = getVLR(false) ++ getVLR(true)
+
+  def getVLR(extended: Boolean) = {
+    val path = new Path(location)
+    val fs = path.getFileSystem(SparkHadoopUtil.get.conf)
+    val fileInputStream = fs.open(path)
+
+    try {
+      val nb = if (extended) evlr_nb else vlr_nb
+      val header = if (extended) 60 else 54
+      var offset = if (extended) evlr_offset.toLong else header_size.toLong
+      for (i <- 1 to nb) yield {
+        fileInputStream.seek(offset)
+        val bytes = Array.ofDim[Byte](header)
+        fileInputStream.readFully(bytes)
+        offset += header
+        val vlr = VariableLengthRecord(bytes, offset, false)
+        offset += vlr.recordLength
+        vlr
+      }
+    } finally {
+      fileInputStream.close
+      fs.close
     }
   }
 
-  lazy val evlr = {
-    val in = new FileInputStream(location)
-    val reader = new DataInputStream(in) {
-      def skipFully(n: Long) = {
-        var remaining = n
-        while (remaining > 0) remaining -= skip(remaining)
-      }
-    }
-    reader.skipFully(evlr_offset)
-    for (i <- 1 to evlr_nb) yield {
-      val bytes = Array.ofDim[Byte](60)
-      reader.readFully(bytes)
-      val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-      val reserved = buffer.getShort
-      // require(reserved == 0)
-      val userIDBytes = Array.ofDim[Byte](16)
-      buffer.get(userIDBytes)
-      val userID = new String(userIDBytes takeWhile (_ != 0) map (_.toChar))
-      val recordID = buffer.getShort
-      val recordLength = buffer.getLong
-      val descriptionBytes = Array.ofDim[Byte](32)
-      buffer.get(descriptionBytes)
-      val description = new String(descriptionBytes takeWhile (_ != 0) map (_.toChar))
-      reader.skipFully(recordLength)
-      println(s"userID     =$userID\nrecordID   =$recordID\ndescription=$description\n")
-      (userID, recordID, description)
-    }
-  }
-
-  def schema: StructType = LasHeader.schema(pdr_format)
+  def schema: StructType = StructType(LasHeader.schema(pdr_format) ++ extraBytesSchema)
   def header_size: Short = LasHeader.header_size(version.major)(version.minor)
   def pdr_offset: Int = if (pdr_offset0 > 0) pdr_offset0 else header_size
   def pdr_length: Short = Math.max(pdr_length_header, LasHeader.pdr_length(pdr_format)).toShort
 
+  // lasinfo style printing
+  // scalastyle:off
   override def toString = f"""
 ---------------------------------------------------------
-  Header Summary
+Header Summary
 ---------------------------------------------------------
 
-  Version:                     $version%s
-  Source ID:                   $sourceID%s
-  Reserved:                    $globalEncoding%s
-  Project ID/GUID:             '$projectID%s'
-  System ID:                   '$systemID%s'
-  Generating Software:         '$software%s'
-  File Creation Day/Year:      ${creation.mkString("/")}%s
-  Header Byte Size             $header_size%d
-  Data Offset:                 $pdr_offset%d
-  Header Padding:              0
-  Number Var. Length Records:  ${if (vlr_nb > 0) vlr_nb else "None"}%s
-  Point Data Format:           $pdr_format%d
-  Number of Point Records:     $pdr_nb%d
-  Compressed:                  False
-  Number of Points by Return:  ${pdr_return_nb.mkString(" ")}%s
-  Scale Factor X Y Z:          ${scale.mkString(" ")}%s
-  Offset X Y Z:                ${offset.mkString(" ")}%s
-  Min X Y Z:                   ${pmin(0)}%.2f ${pmin(1)}%.2f ${pmin(2)}%f 
-  Max X Y Z:                   ${pmax(0)}%.2f ${pmax(1)}%.2f ${pmax(2)}%f
-  Spatial Reference:           None
+Version:                     $version%s
+Source ID:                   $sourceID%s
+Reserved:                    $globalEncoding%s
+Project ID/GUID:             '$projectID%s'
+System ID:                   '$systemID%s'
+Generating Software:         '$software%s'
+File Creation Day/Year:      ${creation.mkString("/")}%s
+Header Byte Size             $header_size%d
+Data Offset:                 $pdr_offset%d
+Header Padding:              0
+Number Var. Length Records:  ${if (vlr_nb > 0) vlr_nb else "None"}%s
+Point Data Format:           $pdr_format%d
+Number of Point Records:     $pdr_nb%d
+Compressed:                  False
+Number of Points by Return:  ${pdr_return_nb.mkString(" ")}%s
+Scale Factor X Y Z:          ${scale.mkString(" ")}%s
+Offset X Y Z:                ${offset.mkString(" ")}%s
+Min X Y Z:                   ${pmin(0)}%.2f ${pmin(1)}%.2f ${pmin(2)}%f 
+Max X Y Z:                   ${pmax(0)}%.2f ${pmax(1)}%.2f ${pmax(2)}%f
+Spatial Reference:           None
 
 ---------------------------------------------------------
-  Schema Summary
+Schema Summary
 ---------------------------------------------------------
-  Point Format ID:             $pdr_format%d
-  Number of dimensions:        ${schema.fields.length}%d
-  Custom schema?:              false
-  Size in bytes:               $pdr_length%d
-"""
-
-  /*
-// scalastyle:off
-f"""
+Point Format ID:             $pdr_format%d
+Number of dimensions:        ${schema.fields.length}%d
+Custom schema?:              ${if (customSchema) "true" else "false"}
+Size in bytes:               $pdr_length%d
 ---------------------------------------------------------
   Dimensions
 ---------------------------------------------------------
-  'X'                            --  size: 32 offset: 0
-  'Y'                            --  size: 32 offset: 4
-  'Z'                            --  size: 32 offset: 8
-  'Intensity'                    --  size: 16 offset: 12
-  'Return Number'                --  size: 3 offset: 14
-  'Number of Returns'            --  size: 3 offset: 14
-  'Scan Direction'               --  size: 1 offset: 14
-  'Flightline Edge'              --  size: 1 offset: 14
-  'Classification'               --  size: 8 offset: 15
-  'Scan Angle Rank'              --  size: 8 offset: 16
-  'User Data'                    --  size: 8 offset: 17
-  'Point Source ID'              --  size: 16 offset: 18
-  
----------------------------------------------------------
-  Point Inspection Summary
----------------------------------------------------------
-  Header Point Count: 497536
-  Actual Point Count: 497536
-
-  Minimum and Maximum Attributes (min,max)
----------------------------------------------------------
-  Min X, Y, Z:    1440000.00, 375000.03, 832.18
-  Max X, Y, Z:    1444999.96, 379999.99, 972.67
-  Bounding Box:   1440000.00, 375000.03, 1444999.96, 379999.99
-  Time:     0.000000, 0.000000
-  Return Number:  0, 0
-  Return Count:   0, 0
-  Flightline Edge:  0, 0
-  Intensity:    0, 255
-  Scan Direction Flag:  0, 0
-  Scan Angle Rank:  0, 0
-  Classification: 1, 5
-  Point Source Id:  29, 30
-  User Data:    0, 0
-  Minimum Color (RGB):  0 0 0 
-  Maximum Color (RGB):  0 0 0 
-
-  Number of Points by Return
----------------------------------------------------------
-  (1) 497536
-
-  Number of Returns by Pulse
----------------------------------------------------------
-  (0) 497536
-
-  Point Classifications
----------------------------------------------------------
-  19675 Unclassified (1) 
-  402812 Ground (2) 
-  75049 High Vegetation (5) 
-  -------------------------------------------------------
-    0 withheld
-    0 keypoint
-    0 synthetic
-  -------------------------------------------------------
+${schema.map(f => s"  '${f.name}'".padTo(34, ' ') + s"--  size : ${f.dataType.defaultSize}").mkString("\n")}
 """
-// scalastyle:on
-*/
+  // scalastyle:on
 
   def toBinarySection: BinarySection = {
     BinarySection(location, pdr_offset, pdr_nb, true, schema, pdr_length)
@@ -303,7 +331,7 @@ f"""
       println(s"pdr_nb = $pdr_nb")
       println(s"pdr_return_nb = ${pdr_return_nb.mkString(",")}")
     }
-    */
+	 */
 
 object LasHeader {
   val header_size: Map[Int, Array[Short]] = Map(1 -> Array(227, 227, 227, 235, 375))
