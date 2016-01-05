@@ -22,6 +22,7 @@ import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources.OutputWriterFactory
 import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.sql.types._
+import scala.util.{ Try, Success, Failure }
 
 class LasRelation(
   override val paths: Array[String],
@@ -38,15 +39,18 @@ class LasRelation(
     .getOrElse(Version(major, minor))
 
   lazy val headers: Array[LasHeader] = paths flatMap { location =>
-    val path = new Path(location)
-    val fs = FileSystem.get(path.toUri, sqlContext.sparkContext.hadoopConfiguration)
-    try {
+    Try {
+      val path = new Path(location)
+      val fs = FileSystem.get(path.toUri, sqlContext.sparkContext.hadoopConfiguration)
       val dis = fs.open(path)
       try LasHeader.read(location, dis)
-      finally dis.close
-    } catch {
-      case _: java.io.FileNotFoundException =>
-        logWarning(s"File not found : $location, skipping"); None
+      finally {
+        dis.close
+        fs.close
+      }
+    } match {
+      case Success(h) => Some(h)
+      case Failure(e) => logWarning(s"Skipping $location : $e.getMessage"); None
     }
   }
 

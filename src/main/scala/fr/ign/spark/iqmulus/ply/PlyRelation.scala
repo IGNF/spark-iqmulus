@@ -25,11 +25,13 @@ import org.apache.hadoop.mapreduce.lib.output.{ FileOutputFormat, FileOutputComm
 import org.apache.spark.sql.sources.OutputWriterFactory
 import org.apache.hadoop.mapreduce.{ TaskAttemptContext, JobContext }
 import org.apache.spark.deploy.SparkHadoopUtil
+import scala.util.{ Try, Success, Failure }
+import org.apache.spark.Logging
 
 class PlyOutputCommitter(
     name: Path,
     context: TaskAttemptContext
-) extends FileOutputCommitter(name, context) {
+) extends FileOutputCommitter(name, context) with Logging {
 
   override def commitJob(job: JobContext) = {
     super.commitJob(job);
@@ -46,7 +48,10 @@ class PlyOutputCommitter(
 
       val header = {
         // read all headers
-        val headers = paths.flatMap(PlyHeader.read(_))
+        val headers = paths.flatMap(path => Try(PlyHeader.read(path)) match {
+          case Success(h) => Some(h)
+          case Failure(e) => logWarning(s"Skipping $path : e.getMessage"); None
+        })
         // assume all headers have been read successfully
         require(headers.length == paths.length)
         headers.reduce(_ merge _)
@@ -93,15 +98,18 @@ class PlyRelation(
   val littleEndian = parameters.getOrElse("littleEndian", "true").toBoolean
 
   lazy val headers: Array[PlyHeader] = paths flatMap { location =>
-    val path = new Path(location)
-    val fs = FileSystem.get(path.toUri, sqlContext.sparkContext.hadoopConfiguration)
-    try {
+    Try {
+      val path = new Path(location)
+      val fs = FileSystem.get(path.toUri, sqlContext.sparkContext.hadoopConfiguration)
       val dis = fs.open(path)
       try PlyHeader.read(location, dis)
-      finally dis.close
-    } catch {
-      case _: java.io.FileNotFoundException =>
-        logWarning(s"File not found : $location, skipping"); None
+      finally {
+        dis.close
+        fs.close
+      }
+    } match {
+      case Success(h) => Some(h)
+      case Failure(e) => logWarning(s"Skipping $location : ${e.getMessage}"); None
     }
   }
 

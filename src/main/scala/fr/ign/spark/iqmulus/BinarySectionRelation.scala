@@ -113,7 +113,7 @@ abstract class BinarySectionRelation(
   def sections: Array[BinarySection]
 
   /**
-   * Determine the RDD Schema based on the se header info.
+   * Determine the RDD Schema based on the header info.
    * @return StructType instance
    */
   override lazy val dataSchema: StructType = StructType((maybeDataSchema match {

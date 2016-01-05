@@ -39,12 +39,12 @@ class PlySuite extends FunSuite with ShouldMatchers {
     case (file, count, fields) =>
       if (new java.io.File(s"$resources/$file").exists) {
         test(s"$file should read the correct header metadata") {
-          val header = PlyHeader.read(s"$resources/$file").get;
+          val header = PlyHeader.read(s"$resources/$file");
           header.section("vertex").count should equal(count)
         }
 
         test(s"$file should have the correct schema") {
-          val header = PlyHeader.read(s"$resources/$file").get;
+          val header = PlyHeader.read(s"$resources/$file");
           header.section("vertex").schema should equal(StructType(fields map {
             case (name, dataType) => StructField(name, dataType, nullable = false)
           }))

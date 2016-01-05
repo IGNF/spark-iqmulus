@@ -147,57 +147,51 @@ case class PlyHeader(
 }
 
 object PlyHeader {
-  def read(location: String): Option[PlyHeader] =
+  def read(location: String): PlyHeader =
     read(location, new FileInputStream(location))
 
-  def read(path: org.apache.hadoop.fs.Path): Option[PlyHeader] =
+  def read(path: org.apache.hadoop.fs.Path): PlyHeader =
     read(org.apache.hadoop.fs.Path.getPathWithoutSchemeAndAuthority(path).toString)
 
-  def read(location: String, in: java.io.InputStream): Option[PlyHeader] = {
+  def read(location: String, in: java.io.InputStream): PlyHeader = {
     val pb = new PushbackReader(new InputStreamReader(in), 5)
     val br = new BufferedReader(pb)
-    var littleEndian = false
-    var comments = Seq.empty[String]
-    var obj_info = Seq.empty[String]
-    var elements = Seq.empty[PlyElement]
-    val line1 = "ply\r\n".toArray
-    var nread = pb.read(line1, 0, 5)
-    val nl = if (nread == 5 && "\r\n".contains(line1(4))) 2 else 1
-    pb.unread(line1)
-    var line = br.readLine
-    var offset = line.length + nl
-    if (line != "ply") {
-      println(s"$location : not a PLY file, skipping")
-      None
-    } else {
+    try {
+      var littleEndian = false
+      var comments = Seq.empty[String]
+      var obj_info = Seq.empty[String]
+      var elements = Seq.empty[PlyElement]
+      val line1 = "ply\r\n".toArray
+      var nread = pb.read(line1, 0, 5)
+      val nl = if (nread == 5 && "\r\n".contains(line1(4))) 2 else 1
+      pb.unread(line1)
+      var line = br.readLine
+      var offset = line.length + nl
+      if (line != "ply") {
+        throw new java.lang.IllegalArgumentException(s"Not a PLY file (starts with ${line.slice(0, 4)})")
+      }
       line = br.readLine
       while (line != null) {
         offset += line.length + nl
-        val words = line.split("\\s+")
-        (words.length, words.head) match {
-          case (3, "format") =>
-            littleEndian = (words(1), words(2)) match {
-              case ("binary_little_endian", "1.0") => true
-              case ("binary_big_endian", "1.0") => false
-              case _ =>
-                println(s"$location : PLY file with unsupported format ($line), skipping");
-                br.close
-                return None
-            }
-          case (1, "end_header") =>
-            br.close
-            return Some(PlyHeader(location, littleEndian, offset, elements, obj_info, comments))
-          case (_, "comment") => comments :+= line;
-          case (_, "obj_info") => obj_info :+= words.tail.mkString(" ");
-          case (3, "element") => elements :+= PlyElement(words(1), littleEndian, words(2).toLong)
-          case (3, "property") => elements.last.properties :+= PlyProperty(words(2), words(1))
-          case (_, _) => println(s"$location : skipping ill-formed PLY header line : $line")
+        line.split("\\s+").toSeq match {
+          case Nil =>
+          case "format" +: "binary_little_endian" +: "1.0" +: Nil => littleEndian = true
+          case "format" +: "binary_big_endian" +: "1.0" +: Nil => littleEndian = false
+          case "format" +: _ => throw new java.lang.IllegalArgumentException(s"PLY file with unsupported format ($line)")
+          case "comment" +: _ => comments :+= line;
+          case "obj_info" +: _ => obj_info :+= line;
+          case "element" +: name +: count +: Nil => elements :+= PlyElement(name, littleEndian, count.toLong)
+          case "property" +: typename +: name +: Nil => elements.last.properties :+= PlyProperty(name, typename)
+          case "end_header" +: Nil =>
+            return PlyHeader(location, littleEndian, offset, elements, obj_info, comments)
+
+          case _ => throw new java.lang.IllegalArgumentException(s"Ill-formed PLY header line : $line")
         }
         line = br.readLine
       }
-      println(s"$location : truncated header")
+      throw new java.lang.IllegalArgumentException(s"Truncated PLY header")
+    } finally {
       br.close
-      None
     }
   }
 }

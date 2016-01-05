@@ -95,7 +95,20 @@ class ExtraBytes(bytes: Array[Byte]) {
 
   def makeField(i: Int) = {
     val fieldName = if (dim == 1) name else s"$name$i"
-    StructField(fieldName, dataType, false)
+    val metadata = new MetadataBuilder()
+    upcastDataType match {
+      case LongType =>
+        if ((options & 1) != 0) metadata.putLong("no_data", getLongArray(40)(i))
+        if ((options & 2) != 0) metadata.putLong("min", getLongArray(64)(i))
+        if ((options & 4) != 0) metadata.putLong("max", getLongArray(88)(i))
+      case DoubleType =>
+        if ((options & 1) != 0) metadata.putDouble("no_data", getDoubleArray(40)(i))
+        if ((options & 2) != 0) metadata.putDouble("min", getDoubleArray(64)(i))
+        if ((options & 4) != 0) metadata.putDouble("max", getDoubleArray(88)(i))
+    }
+    if ((options & 16) != 0) metadata.putDouble("scale", scale(i))
+    if ((options & 32) != 0) metadata.putDouble("offset", offset(i))
+    StructField(fieldName, dataType, false, metadata.build)
   }
   def schema = StructType(Array.tabulate(dim)(makeField))
 }
@@ -107,7 +120,7 @@ object ExtraBytes {
     "Undefined extra byte".zipWithIndex.foreach { case (c, i) => bytes(160 + i) = c.toByte }
     bytes
   }
-  val userIDBytes = "LASF_Spec".getBytes
+  val userIDBytes = "LASF_Spec".getBytes.padTo(16, 0.toByte)
   val recordID = 4.toShort
   val dataType = Array(
     ByteType,
@@ -187,10 +200,11 @@ case class LasHeader(
     val res = for ((r, bytes) <- vlrWithBytes; i <- 0 until r.recordLength.toInt by 192)
       yield new ExtraBytes(bytes.slice(i, i + 192))
 
-    if (res.isEmpty)
+    if (res.isEmpty) {
       Array(new ExtraBytes(Math.min(255, pdr_length - LasHeader.pdr_length(pdr_format)).toByte))
-    else
+    } else {
       res.toArray
+    }
   }
 
   lazy val vlr = getVLR(false) ++ getVLR(true)
@@ -259,6 +273,7 @@ Point Format ID:             $pdr_format%d
 Number of dimensions:        ${schema.fields.length}%d
 Custom schema?:              ${if (customSchema) "true" else "false"}
 Size in bytes:               $pdr_length%d
+
 ---------------------------------------------------------
   Dimensions
 ---------------------------------------------------------
@@ -316,22 +331,6 @@ ${schema.map(f => s"  '${f.name}'".padTo(34, ' ') + s"--  size : ${f.dataType.de
   }
 
 }
-
-/*
-    // not available in Las 1.0
-    val wdpr_offset = buffer.getLong(227)
-    val evlr_offset = buffer.getLong(235)
-    val evlr_nb = buffer.getInt(243)
-    val pdr_nb = buffer.getLong(247)
-    val pdr_return_nb = get(255, 15, 8, buffer.getLong)
-    if (version.major > 1 || version.minor > 0) {
-      println(s"wdpr_offset = $wdpr_offset")
-      println(s"evlr_offset = $evlr_offset")
-      println(s"evlr_nb = $evlr_nb")
-      println(s"pdr_nb = $pdr_nb")
-      println(s"pdr_return_nb = ${pdr_return_nb.mkString(",")}")
-    }
-	 */
 
 object LasHeader {
   val header_size: Map[Int, Array[Short]] = Map(1 -> Array(227, 227, 227, 235, 375))
@@ -400,24 +399,17 @@ object LasHeader {
       val fieldSet = schema.fields.toSet - "pid" - "fid"
       def subSchema(schema: StructType) = fieldSet subsetOf schema.fields.toSet
       val format = (LasHeader.schema indexWhere subSchema).toByte
-      if (format == -1) {
-        sys.error(s"dataframe schema is not a subset of any LAS format schema")
-      }
+      require(format >= 0, s"Dataframe schema is not a subset of any LAS format schema")
       format
     }
 
-  def read(location: String): Option[LasHeader] =
+  def read(location: String): LasHeader =
     read(location, new FileInputStream(location))
 
-  def read(location: String, in: InputStream): Option[LasHeader] = {
+  def read(location: String, in: InputStream): LasHeader = {
     val dis = new java.io.DataInputStream(in)
     val bytes = Array.ofDim[Byte](375)
-    try dis.readFully(bytes)
-    catch {
-      case e: java.io.IOException =>
-        println(s"$location : Unable to read (${bytes.length} bytes, skipping.");
-        return None
-    }
+    dis.readFully(bytes)
     val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
 
     def readString(offset: Int, length: Int) = {
@@ -432,9 +424,9 @@ object LasHeader {
 
     val signature = readString(0, 4)
     if (signature != "LASF") {
-      println(s"$location : not a LAS file, skipping (signature=$signature)");
-      return None
+      throw new java.lang.IllegalArgumentException(s"Not a LAS file (signature=$signature)")
     }
+
     val sourceID = buffer.getShort(4)
     val globalEncoding = buffer.getShort(6)
     val projectID = ProjectID(
@@ -475,7 +467,7 @@ object LasHeader {
       pdr_return_nb = get(255, 15, 8, buffer.getLong)
     }
 
-    Some(LasHeader(
+    LasHeader(
       location,
       pdr_format,
       pdr_nb,
@@ -497,6 +489,6 @@ object LasHeader {
       waveform_offset,
       evlr_offset,
       evlr_nb
-    ))
+    )
   }
 }

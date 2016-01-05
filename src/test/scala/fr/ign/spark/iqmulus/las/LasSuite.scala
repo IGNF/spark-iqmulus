@@ -105,7 +105,7 @@ class LasSuite extends FunSuite with ShouldMatchers {
         val file = download(url, uri, sha1)
         if (file.exists) {
           test(s"LAS$major.$minor/$pdr_format: $target should read the correct header metadata") {
-            val header = LasHeader.read(file.getPath).get;
+            val header = LasHeader.read(file.getPath);
             header.version should equal(Version(major.toByte, minor.toByte))
             header.pdr_format should be(pdr_format)
             header.vlr_nb should be(vlr_nb)
