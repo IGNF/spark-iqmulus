@@ -94,7 +94,7 @@ class ExtraBytes(bytes: Array[Byte]) {
   def name = new String(nameBytes takeWhile (_ != 0) map (_.toChar))
   def description = new String(descBytes takeWhile (_ != 0) map (_.toChar))
 
-  def schema = StructType(Array.tabulate(dim)(i => {
+  def schema(fid: Int) = StructType(Array.tabulate(dim)(i => {
     val fieldName = if (dim == 1) name else s"$name$i"
     val metadata = new MetadataBuilder()
     val opt = (0 until 5) map (j => (options & (1 << j)) != 0)
@@ -110,7 +110,9 @@ class ExtraBytes(bytes: Array[Byte]) {
     }
     if (opt(3)) metadata.putDouble("scale", scale(i))
     if (opt(4)) metadata.putDouble("offset", offset(i))
-    StructField(fieldName, dataType, opt(0), metadata.build)
+    val builder = new MetadataBuilder()
+    builder.putMetadata(fid.toString, metadata.build)
+    StructField(fieldName, dataType, opt(0), builder.build)
   }))
 }
 
@@ -176,7 +178,7 @@ case class LasHeader(
     evlr_nb: Int = 0
 ) {
 
-  def extraBytesSchema = StructType(extraBytes.map(_.schema.fields).fold(Array.empty)(_ ++ _))
+  def extraBytesSchema(fid: Int) = StructType(extraBytes.map(_.schema(fid).fields).fold(Array.empty)(_ ++ _))
   def customSchema = pdr_length != LasHeader.pdr_length(pdr_format)
 
   def extraBytes: Array[ExtraBytes] = {
@@ -235,7 +237,7 @@ case class LasHeader(
   }
 
   // todo: add metadata to the schema for non-extra-byte columns
-  def schema: StructType = StructType(LasHeader.schema(pdr_format) ++ extraBytesSchema)
+  def schema(fid: Int): StructType = StructType(LasHeader.schema(pdr_format) ++ extraBytesSchema(fid))
   def header_size: Short = LasHeader.header_size(version.major)(version.minor)
   def pdr_offset: Int = if (pdr_offset0 > 0) pdr_offset0 else header_size
   def pdr_length: Short = Math.max(pdr_length_header, LasHeader.pdr_length(pdr_format)).toShort
@@ -272,19 +274,19 @@ Spatial Reference:           None
 Schema Summary
 ---------------------------------------------------------
 Point Format ID:             $pdr_format%d
-Number of dimensions:        ${schema.fields.length}%d
+Number of dimensions:        ${schema(0).fields.length}%d
 Custom schema?:              ${if (customSchema) "true" else "false"}
 Size in bytes:               $pdr_length%d
 
 ---------------------------------------------------------
   Dimensions
 ---------------------------------------------------------
-${schema.map(f => s"  '${f.name}'".padTo(34, ' ') + s"--  size : ${f.dataType.defaultSize}").mkString("\n")}
+${schema(0).map(f => s"  '${f.name}'".padTo(34, ' ') + s"--  size : ${f.dataType.defaultSize}").mkString("\n")}
 """
   // scalastyle:on
 
-  def toBinarySection: BinarySection = {
-    BinarySection(location, pdr_offset, pdr_nb, true, schema, pdr_length)
+  def toBinarySection(paths: Array[String]): BinarySection = {
+    BinarySection(location, pdr_offset, pdr_nb, true, schema(paths.indexOf(location)), pdr_length)
   }
 
   def write(dos: DataOutputStream): Unit = {

@@ -54,7 +54,7 @@ class LasRelation(
     }
   }
 
-  override def sections: Array[BinarySection] = headers.map(_.toBinarySection)
+  override def sections: Array[BinarySection] = headers.map(_.toBinarySection(paths))
 
   override def prepareJobForWrite(job: Job): OutputWriterFactory = {
     new LasOutputWriterFactory(format, version)
