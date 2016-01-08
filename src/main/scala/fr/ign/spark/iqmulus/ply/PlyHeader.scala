@@ -22,6 +22,7 @@ import java.io.{ BufferedReader, InputStreamReader, PushbackReader }
 import org.apache.commons.io.input.CountingInputStream
 import org.apache.hadoop.io.{ LongWritable, BytesWritable }
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.types.OffsetScaledIntegerType
 import _root_.fr.ign.spark.iqmulus.BinarySection
 import java.io.{ InputStream, DataOutputStream, FileInputStream }
 
@@ -47,6 +48,8 @@ case class PlyProperty(name: String, typename: String) {
       case LongType => "int64"
       case FloatType => "float32"
       case DoubleType => "float64"
+      case _: ScaledIntegerType => "int32"
+      case _: OffsetScaledIntegerType => "int32"
       case other => sys.error(s"Unsupported type $other")
     })
   }
@@ -119,7 +122,11 @@ case class PlyHeader(
         PlyElement(name, littleEndian, count, schema.fields.map { f =>
           new PlyProperty(f.name, f.dataType)
         })
-    }.toSeq, obj_info, comments)
+    }.toSeq, obj_info, comments ++ schemas.values.flatMap(_._2.fields).flatMap(f => f.dataType match {
+      case t: OffsetScaledIntegerType => Iterator(s"comment ${f.name} = ${t.scale}*value+${t.offset}")
+      case t: ScaledIntegerType => Iterator(s"comment ${f.name} = ${t.scale}*value")
+      case _ => Iterator()
+    }))
   }
 
   def this(

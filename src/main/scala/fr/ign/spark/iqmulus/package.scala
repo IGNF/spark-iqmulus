@@ -72,7 +72,11 @@ package object iqmulus {
             s"scala $leftScale and $rightScale")
         }
          */
-        case (leftUdt: UserDefinedType[_], rightUdt: UserDefinedType[_]) if leftUdt.userClass == rightUdt.userClass => leftUdt
+        case (left: MergeableType, right) if left.mergeable(right) => left.merge(right)
+        case (left, right: MergeableType) if right.mergeable(left) => right.merge(left)
+
+        case (leftUdt: UserDefinedType[_], rightUdt: UserDefinedType[_]) if leftUdt.userClass == rightUdt.userClass =>
+          leftUdt
 
         case (leftType, rightType) if leftType == rightType => leftType
 
@@ -150,7 +154,7 @@ package object iqmulus {
   }
 
   implicit class StructFieldWithGet(field: StructField) {
-    def get(offset: Int): (ByteBuffer => Any) = field.dataType match {
+    private def get(datatype: DataType)(offset: Int): (ByteBuffer => Any) = datatype match {
       case ByteType => b => b get offset
       case ShortType => b => b getShort offset
       case IntegerType => b => b getInt offset
@@ -158,8 +162,12 @@ package object iqmulus {
       case FloatType => b => b getFloat offset
       case DoubleType => b => b getDouble offset
       case NullType => b => null
+      //     case s : StructType => b => s.foreach(f=>get(f.dataType)( ??? )(b))
+      case udt: UserDefinedType[_] => get(udt.sqlType)(offset)
       case other => sys.error(s"Unsupported type $other")
     }
+
+    def get(offset: Int): (ByteBuffer => Any) = get(field.dataType)(offset)
   }
 
   case class RowOutputStream(dos: DataOutputStream, littleEndian: Boolean,
@@ -173,19 +181,35 @@ package object iqmulus {
     val datatypeWithIndex = schema.fields.map(f =>
       (f.dataType, dataSchema.indexWhere(g => g.name == f.name && g.dataType == f.dataType)))
 
+    private def put(dataType: DataType, any: Any): Unit = dataType match {
+      case ByteType => buffer put (any.asInstanceOf[Byte])
+      case ShortType => buffer putShort (any.asInstanceOf[Short])
+      case IntegerType => buffer putInt (any.asInstanceOf[Integer])
+      case LongType => buffer putLong (any.asInstanceOf[Long])
+      case FloatType => buffer putFloat (any.asInstanceOf[Float])
+      case DoubleType => buffer putDouble (any.asInstanceOf[Double])
+      case NullType => ()
+      case other => sys.error(s"Unsupported type $other")
+    }
+
+    private def put(row: Row)(dataType: DataType, i: Int): Unit =
+      if (i == -1) buffer position (buffer.position + dataType.defaultSize)
+      else dataType match {
+        case ByteType => buffer put (row.getByte(i))
+        case ShortType => buffer putShort (row.getShort(i))
+        case IntegerType => buffer putInt (row.getInt(i))
+        case LongType => buffer putLong (row.getLong(i))
+        case FloatType => buffer putFloat (row.getFloat(i))
+        case DoubleType => buffer putDouble (row.getDouble(i))
+        case NullType => ()
+        //        case s : StructType => s.foreach(f => put(row)(f.dataType, ??? ))
+        case udt: UserDefinedType[_] => put(udt.sqlType, udt.serialize(row.get(i)))
+        case other => sys.error(s"Unsupported type $other")
+      }
+
     def write(row: Row) = {
       buffer.rewind
-      datatypeWithIndex.foreach {
-        case (dataType, -1) => buffer position (buffer.position + dataType.defaultSize)
-        case (ByteType, i) => buffer put (row.getByte(i))
-        case (ShortType, i) => buffer putShort (row.getShort(i))
-        case (IntegerType, i) => buffer putInt (row.getInt(i))
-        case (LongType, i) => buffer putLong (row.getLong(i))
-        case (FloatType, i) => buffer putFloat (row.getFloat(i))
-        case (DoubleType, i) => buffer putDouble (row.getDouble(i))
-        case (NullType, _) => ()
-        case (other, _) => sys.error(s"Unsupported type $other")
-      }
+      datatypeWithIndex.foreach { case (d, i) => put(row)(d, i) }
       dos write bytes
     }
 

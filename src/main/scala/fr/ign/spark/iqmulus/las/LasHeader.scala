@@ -19,6 +19,7 @@ package fr.ign.spark.iqmulus.las
 import scala.reflect.ClassTag
 import org.apache.hadoop.io._
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.types.OffsetScaledIntegerType
 import fr.ign.spark.iqmulus.BinarySection
 import java.nio.{ ByteBuffer, ByteOrder }
 import java.io.{ InputStream, DataOutputStream, FileInputStream, DataInputStream, BufferedInputStream }
@@ -93,24 +94,24 @@ class ExtraBytes(bytes: Array[Byte]) {
   def name = new String(nameBytes takeWhile (_ != 0) map (_.toChar))
   def description = new String(descBytes takeWhile (_ != 0) map (_.toChar))
 
-  def makeField(i: Int) = {
+  def schema = StructType(Array.tabulate(dim)(i => {
     val fieldName = if (dim == 1) name else s"$name$i"
     val metadata = new MetadataBuilder()
+    val opt = (0 until 5) map (j => (options & (1 << j)) != 0)
     upcastDataType match {
       case LongType =>
-        if ((options & 1) != 0) metadata.putLong("no_data", getLongArray(40)(i))
-        if ((options & 2) != 0) metadata.putLong("min", getLongArray(64)(i))
-        if ((options & 4) != 0) metadata.putLong("max", getLongArray(88)(i))
+        if (opt(0)) metadata.putLong("nodata", getLongArray(40)(i))
+        if (opt(1)) metadata.putLong("min", getLongArray(64)(i))
+        if (opt(2)) metadata.putLong("max", getLongArray(88)(i))
       case DoubleType =>
-        if ((options & 1) != 0) metadata.putDouble("no_data", getDoubleArray(40)(i))
-        if ((options & 2) != 0) metadata.putDouble("min", getDoubleArray(64)(i))
-        if ((options & 4) != 0) metadata.putDouble("max", getDoubleArray(88)(i))
+        if (opt(0)) metadata.putDouble("nodata", getDoubleArray(40)(i))
+        if (opt(1)) metadata.putDouble("min", getDoubleArray(64)(i))
+        if (opt(2)) metadata.putDouble("max", getDoubleArray(88)(i))
     }
-    if ((options & 16) != 0) metadata.putDouble("scale", scale(i))
-    if ((options & 32) != 0) metadata.putDouble("offset", offset(i))
-    StructField(fieldName, dataType, false, metadata.build)
-  }
-  def schema = StructType(Array.tabulate(dim)(makeField))
+    if (opt(3)) metadata.putDouble("scale", scale(i))
+    if (opt(4)) metadata.putDouble("offset", offset(i))
+    StructField(fieldName, dataType, opt(0), metadata.build)
+  }))
 }
 
 object ExtraBytes {
@@ -233,6 +234,7 @@ case class LasHeader(
     }
   }
 
+  // todo: add metadata to the schema for non-extra-byte columns
   def schema: StructType = StructType(LasHeader.schema(pdr_format) ++ extraBytesSchema)
   def header_size: Short = LasHeader.header_size(version.major)(version.minor)
   def pdr_offset: Int = if (pdr_offset0 > 0) pdr_offset0 else header_size
@@ -345,9 +347,9 @@ object LasHeader {
     )
 
     val point = Array(
-      "x" -> IntegerType,
-      "y" -> IntegerType,
-      "z" -> IntegerType,
+      "x" -> IntegerType, // OffsetScaledIntegerType(0, 0.01),
+      "y" -> IntegerType, // OffsetScaledIntegerType(0, 0.01),
+      "z" -> IntegerType, // OffsetScaledIntegerType(0, 0.01),
       "intensity" -> ShortType
     )
 
@@ -396,10 +398,12 @@ object LasHeader {
 
   def formatFromSchema(schema: StructType): Byte =
     {
-      val fieldSet = schema.fields.toSet - "pid" - "fid"
+      val fieldSet = schema
+        .map(_.copy(nullable = false))
+        .filterNot(f => f.name == "pid" || f.name == "fid").toSet
       def subSchema(schema: StructType) = fieldSet subsetOf schema.fields.toSet
       val format = (LasHeader.schema indexWhere subSchema).toByte
-      require(format >= 0, s"Dataframe schema is not a subset of any LAS format schema")
+      require(format >= 0, s"Dataframe schema is not a subset of any LAS format schema:\n${fieldSet mkString "\n"}")
       format
     }
 

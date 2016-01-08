@@ -69,12 +69,8 @@ private[iqmulus] class FixedLengthBinarySectionInputFormat
     if (recordStride == -1) {
       recordStride = FixedLengthBinarySectionInputFormat.getRecordStride(context)
     }
-    if (recordLength <= 0) {
-      println("record length is less than 0, file cannot be split")
-      false
-    } else {
-      true
-    }
+    require(recordLength > 0, s"record length is $recordLength<=0, file cannot be split")
+    true
   }
 
   /**

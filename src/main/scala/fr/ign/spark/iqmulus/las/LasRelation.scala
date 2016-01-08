@@ -50,7 +50,7 @@ class LasRelation(
       }
     } match {
       case Success(h) => Some(h)
-      case Failure(e) => logWarning(s"Skipping $location : $e.getMessage"); None
+      case Failure(e) => logWarning(s"Skipping $location : ${e.getMessage}"); None
     }
   }
 

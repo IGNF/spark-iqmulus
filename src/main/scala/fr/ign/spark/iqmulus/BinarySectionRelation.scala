@@ -70,16 +70,31 @@ case class BinarySection(
       case (targetType, (StructField(name, _, _, _), _)) if name == fidName => (pid: Long, bytes: ByteBuffer) => {
         new IQmulusCast(Literal(fid), targetType).nullSafeEval(fid)
       }
-      case (targetType, (sourceField, offset)) =>
+      case (targetType, (sourceField, offset)) => {
+        val getValue = sourceField.get(offset)
+        val md = sourceField.metadata
+        val nodata = sourceField.nullable && sourceField.metadata.contains("nodata")
+        def getNullableValue = if (!nodata) getValue else {
+          val nodataval: Any = sourceField.dataType match {
+            case BooleanType => md.getBoolean("nodata")
+            case ByteType => md.getLong("nodata").toByte
+            case ShortType => md.getLong("nodata").toShort
+            case IntegerType => md.getLong("nodata").toInt
+            case LongType => md.getLong("nodata")
+            case FloatType => md.getDouble("nodata").toFloat
+            case DoubleType => md.getDouble("nodata")
+          }
+          (bytes: ByteBuffer) => { val v = getValue(bytes); if (v == nodataval) null else v }
+        }
         sourceField.dataType match {
-          case NullType => (pid: Long, bytes: ByteBuffer) => null
-          case sourceType if sourceType == targetType => (pid: Long, bytes: ByteBuffer) => sourceField.get(offset)(bytes)
-          case sourceType => (pid: Long, bytes: ByteBuffer) => {
-            val value = sourceField.get(offset)(bytes)
-            val cast = new IQmulusCast(Literal(value), targetType)
-            cast.nullSafeEval(value)
+          case NullType => (_: Long, bytes: ByteBuffer) => getValue(bytes)
+          case sourceType if sourceType == targetType => (_: Long, bytes: ByteBuffer) => getNullableValue(bytes)
+          case sourceType => (_: Long, bytes: ByteBuffer) => {
+            val value = getNullableValue(bytes)
+            new IQmulusCast(Literal(value), targetType).nullSafeEval(value)
           }
         }
+      }
     }
 
   def getSeqAux(fid: Int, prop: Seq[(DataType, (StructField, Int))])(key: LongWritable, bytes: BytesWritable): Seq[Any] =
