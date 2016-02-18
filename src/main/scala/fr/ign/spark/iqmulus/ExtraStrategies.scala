@@ -26,7 +26,9 @@ import org.apache.spark.sql.catalyst.expressions.{ Alias, IntegerLiteral }
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
-import org.apache.spark.sql.catalyst.expressions.{ Min, Max, Count, Expression, NamedExpression }
+import org.apache.spark.sql.catalyst.expressions.aggregate.{ Min, Max, Count }
+import org.apache.spark.sql.catalyst.expressions.{ Expression, NamedExpression }
+
 import scala.reflect.{ classTag, ClassTag }
 
 // optimized counts for PLY and LAS relations
@@ -34,7 +36,7 @@ case class CountPlan(n: Long, sections: Array[BinarySection], name: String) exte
   println("CountPlan optimization !")
   def count = n * sections.map(_.count).sum
 
-  override def executeCollect(): Array[Row] = Array(Row(count))
+  override def executeCollect(): Array[InternalRow] = Array(InternalRow(count))
 
   def doExecute() = sqlContext.sparkContext.parallelize(Seq(InternalRow(count)), 1)
 
@@ -61,7 +63,7 @@ case class AggregatePlan(aggregateExpressions: Seq[NamedExpression], headers: Ar
     case Count(IntegerLiteral(n)) => headers.map(_.pdr_nb).sum * n
   }
 
-  override def executeCollect(): Array[Row] = Array(Row.fromSeq(aggregateExpressions.map(get _)))
+  override def executeCollect(): Array[InternalRow] = Array(InternalRow.fromSeq(aggregateExpressions.map(get _)))
 
   def doExecute() = sqlContext.sparkContext.parallelize(Seq(
     InternalRow.fromSeq(aggregateExpressions.map(get _))

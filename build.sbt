@@ -9,7 +9,7 @@ scalaVersion := "2.10.6"
 
 spName := "IGNF/spark-iqmulus"
 
-sparkVersion := "1.5.2"
+sparkVersion := "1.6.0"
 
 val testSparkVersion = settingKey[String]("The version of Spark to test against.")
 
