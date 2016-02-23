@@ -26,3 +26,6 @@ metastore_db/
 .scala_dependencies
 .worksheet
 /bin
+
+# IntelliJ IDEA
+.idea
