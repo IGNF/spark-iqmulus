@@ -48,7 +48,8 @@ class PlyOutputCommitter(
 
       val header = {
         // read all headers
-        val headers = paths.flatMap(path => Try(PlyHeader.read(path)) match {
+        // val headers = paths.flatMap(path => Try(PlyHeader.read(path)) match { // doesn't work for URI like hdfs://
+        val headers = paths.flatMap(path => Try(PlyHeader.read(path.toString, fs.open(path))) match {
           case Success(h) => Some(h)
           case Failure(e) => logWarning(s"Skipping $path : e.getMessage"); None
         })
