@@ -7,7 +7,7 @@ A library for reading and writing Lidar point cloud collections in PLY, LAS and 
 
 ## Requirements
 
-This Spark package is for Spark 1.5+.
+This Spark package is for Spark 1.6.1
 
 ## Usage
 
