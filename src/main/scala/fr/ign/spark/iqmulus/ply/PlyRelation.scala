@@ -37,7 +37,7 @@ class PlyOutputCommitter(
     super.commitJob(job);
 
     val conf = job.getConfiguration
-    val outputFiles = conf.getStrings("fr.ign.spark.iqmulus.outputFiles").map(new Path(_).getName)
+    val outputFiles = conf.getStrings("fr.ign.spark.iqmulus.outputFiles","").map(new Path(_).getName)
     val outputFilesCol = conf.get("fr.ign.spark.iqmulus.outputFilesCol")
 
     val fs = name.getFileSystem(conf)
