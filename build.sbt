@@ -1,6 +1,6 @@
 name := "spark-iqmulus"
 
-version := "0.1.0"
+version := "0.1.1"
 
 organization := "IGNF"
 
@@ -9,7 +9,7 @@ scalaVersion := "2.10.6"
 
 spName := "IGNF/spark-iqmulus"
 
-sparkVersion := "1.6.2"
+sparkVersion := "1.6.3"
 
 val testSparkVersion = settingKey[String]("The version of Spark to test against.")
 
