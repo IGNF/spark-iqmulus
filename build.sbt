@@ -39,6 +39,8 @@ spIncludeMaven := true
 
 licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))
 
+credentials += Credentials(Path.userHome / ".ivy2" / ".credentials")
+
 publishTo := {
   val nexus = "https://oss.sonatype.org/"
   if (version.value.endsWith("SNAPSHOT"))
