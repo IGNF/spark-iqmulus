@@ -198,7 +198,6 @@ case class LasHeader(
       }
     } finally {
       fileInputStream.close
-      fs.close
     }
     val res = for ((r, bytes) <- vlrWithBytes; i <- 0 until r.recordLength.toInt by 192)
       yield new ExtraBytes(bytes.slice(i, i + 192))
