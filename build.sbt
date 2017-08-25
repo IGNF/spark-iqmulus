@@ -75,6 +75,6 @@ parallelExecution in Test := false
 // Skip tests during assembly
 test in assembly := {}
 
-ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
-  scalaBinaryVersion.value == "2.11"
-}
+// ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
+//   scalaBinaryVersion.value == "2.11"
+// }

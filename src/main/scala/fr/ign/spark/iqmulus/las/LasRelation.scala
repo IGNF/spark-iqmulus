@@ -19,7 +19,7 @@ package fr.ign.spark.iqmulus.las
 import fr.ign.spark.iqmulus.{ BinarySectionRelation, BinarySection }
 import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.sources.OutputWriterFactory
+import org.apache.spark.sql.execution.datasources.OutputWriterFactory
 import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.sql.types._
 import scala.util.{ Try, Success, Failure }
@@ -28,9 +28,8 @@ class LasRelation(
   override val paths: Array[String],
   override val maybeDataSchema: Option[StructType],
   override val userDefinedPartitionColumns: Option[StructType],
-  parameters: Map[String, String]
-)(@transient val sqlContext: SQLContext)
-    extends BinarySectionRelation(parameters) {
+  parameters: Map[String, String])(@transient val sqlContext: SQLContext)
+  extends BinarySectionRelation(parameters) {
 
   def format = parameters.get("lasformat").map(_.toByte)
   def minor = parameters.get("minor").map(_.toByte).getOrElse(Version.minorDefault)
@@ -50,7 +49,7 @@ class LasRelation(
       }
     } match {
       case Success(h) => Some(h)
-      case Failure(e) => logWarning(s"Skipping $location : ${e.getMessage}"); None
+      case Failure(e) => None // logWarning(s"Skipping $location : ${e.getMessage}"); None
     }
   }
 

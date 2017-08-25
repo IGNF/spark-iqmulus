@@ -46,7 +46,7 @@ private[iqmulus] object FixedLengthBinarySectionInputFormat {
 }
 
 private[iqmulus] class FixedLengthBinarySectionInputFormat
-    extends FileInputFormat[LongWritable, BytesWritable] {
+  extends FileInputFormat[LongWritable, BytesWritable] {
 
   private var recordOffset = -1L
   private var recordCount = -1L

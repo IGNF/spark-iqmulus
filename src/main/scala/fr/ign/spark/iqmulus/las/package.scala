@@ -48,8 +48,7 @@ package object las {
       formatOpt: Option[Byte] = None,
       version: Version = Version(),
       scale: Array[Double] = Array(0.01, 0.01, 0.01),
-      offset: Array[Double] = Array(0, 0, 0)
-    ) = {
+      offset: Array[Double] = Array(0, 0, 0)) = {
       val format = formatOpt.getOrElse(LasHeader.formatFromSchema(df.schema))
       val schema = LasHeader.schema(format) // no user types for now
       val cols = schema.fieldNames.intersect(df.schema.fieldNames)
@@ -62,9 +61,8 @@ package object las {
   implicit class LasRowIterator(iter: Iterator[Row]) {
     def saveAsLas(
       filename: String, schema: StructType, format: Byte,
-      scale: Array[Double], offset: Array[Double], version: Version = Version()
-    ) = {
-      // materialize the partition to access it in a single pass, TODO workaround that 
+      scale: Array[Double], offset: Array[Double], version: Version = Version()) = {
+      // materialize the partition to access it in a single pass, TODO workaround that
       val rows = iter.toArray
       val count = rows.length.toLong
       val pmin = Array.fill[Double](3)(Double.PositiveInfinity)

@@ -24,7 +24,7 @@ import org.apache.spark.sql.{ Row, Strategy => SQLStrategy, SQLContext }
 import org.apache.spark.sql.catalyst.expressions.{ Alias, IntegerLiteral }
 // LogicalRelation is private, see workaround below...
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.sources.BaseRelation
+import org.apache.spark.sql.execution.datasources.BaseRelation
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.aggregate.{ Min, Max, Count }
 import org.apache.spark.sql.catalyst.expressions.{ Expression, NamedExpression }
@@ -47,7 +47,7 @@ case class CountPlan(n: Long, sections: Array[BinarySection], name: String) exte
 
 // optimized aggregations for LAS relations (x/y/z)(min/xmax) and count
 case class AggregatePlan(aggregateExpressions: Seq[NamedExpression], headers: Array[las.LasHeader])
-    extends SparkPlan {
+  extends SparkPlan {
   println("AggregatePlan optimization !")
 
   def unscale(h: las.LasHeader, p: Array[Double], i: Int) = (p(i) - h.offset(i)) / h.scale(i)
@@ -66,8 +66,7 @@ case class AggregatePlan(aggregateExpressions: Seq[NamedExpression], headers: Ar
   override def executeCollect(): Array[InternalRow] = Array(InternalRow.fromSeq(aggregateExpressions.map(get _)))
 
   def doExecute() = sqlContext.sparkContext.parallelize(Seq(
-    InternalRow.fromSeq(aggregateExpressions.map(get _))
-  ), 1)
+    InternalRow.fromSeq(aggregateExpressions.map(get _))), 1)
 
   def output: Seq[AttributeReference] =
     aggregateExpressions.map(a => AttributeReference(a.toAttribute.name, a.toAttribute.dataType)())

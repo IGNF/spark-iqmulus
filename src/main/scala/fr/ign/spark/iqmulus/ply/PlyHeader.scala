@@ -62,11 +62,10 @@ case class PlyProperty(name: String, typename: String) {
 }
 
 case class PlyElement(
-    name: String,
-    littleEndian: Boolean,
-    count: Long,
-    var properties: Seq[PlyProperty] = Seq[PlyProperty]()
-) {
+  name: String,
+  littleEndian: Boolean,
+  count: Long,
+  var properties: Seq[PlyProperty] = Seq[PlyProperty]()) {
 
   def schema = StructType(properties.map(_.toStructField))
 
@@ -84,13 +83,12 @@ case class PlyElement(
 }
 
 case class PlyHeader(
-    location: String,
-    littleEndian: Boolean,
-    length: Long,
-    elements: Seq[PlyElement] = Seq.empty[PlyElement],
-    obj_info: Seq[String] = Seq.empty[String],
-    comments: Seq[String] = Seq.empty[String]
-) {
+  location: String,
+  littleEndian: Boolean,
+  length: Long,
+  elements: Seq[PlyElement] = Seq.empty[PlyElement],
+  obj_info: Seq[String] = Seq.empty[String],
+  comments: Seq[String] = Seq.empty[String]) {
 
   def write(dos: DataOutputStream) = dos writeBytes toString
 
@@ -115,8 +113,7 @@ case class PlyHeader(
     littleEndian: Boolean,
     schemas: Map[String, (Long, StructType)],
     obj_info: Seq[String],
-    comments: Seq[String]
-  ) {
+    comments: Seq[String]) {
     this(location, littleEndian, 0, schemas.map {
       case (name, (count, schema)) =>
         PlyElement(name, littleEndian, count, schema.fields.map { f =>
@@ -132,8 +129,7 @@ case class PlyHeader(
   def this(
     location: String,
     littleEndian: Boolean,
-    schemas: Map[String, (Long, StructType)]
-  ) {
+    schemas: Map[String, (Long, StructType)]) {
     this(location, littleEndian, schemas, Seq.empty[String], Seq.empty[String])
   }
 
@@ -148,8 +144,7 @@ case class PlyHeader(
       0,
       zippedElements.map { case (x, y) => x merge y },
       this.obj_info ++ that.obj_info,
-      this.comments ++ that.comments
-    )
+      this.comments ++ that.comments)
   }
 }
 

@@ -29,9 +29,8 @@ import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.spark.deploy.SparkHadoopUtil
 
 case class Version(
-    major: Byte = Version.majorDefault,
-    minor: Byte = Version.minorDefault
-) {
+  major: Byte = Version.majorDefault,
+  minor: Byte = Version.minorDefault) {
   override def toString = s"$major.$minor"
 }
 
@@ -131,8 +130,7 @@ object ExtraBytes {
     ShortType, ShortType,
     IntegerType, IntegerType,
     LongType, LongType,
-    FloatType, DoubleType
-  )
+    FloatType, DoubleType)
 
   val upcastDataType = Array(
     ByteType,
@@ -140,43 +138,40 @@ object ExtraBytes {
     LongType, LongType,
     LongType, LongType,
     LongType, LongType,
-    DoubleType, DoubleType
-  )
+    DoubleType, DoubleType)
 }
 
 case class ProjectID(
-    ID1: Int = 0,
-    ID2: Short = 0,
-    ID3: Short = 0,
-    ID4: Array[Byte] = Array.fill[Byte](8)(0)
-) {
+  ID1: Int = 0,
+  ID2: Short = 0,
+  ID3: Short = 0,
+  ID4: Array[Byte] = Array.fill[Byte](8)(0)) {
   override def toString =
     f"${ID4.mkString}%s-0000-$ID3%04d-$ID2%04d-$ID1%08d"
 }
 
 case class LasHeader(
-    location: String,
-    pdr_format: Byte,
-    pdr_nb: Long = 0,
-    pmin: Array[Double] = Array.fill[Double](3)(0),
-    pmax: Array[Double] = Array.fill[Double](3)(0),
-    scale: Array[Double] = Array.fill[Double](3)(1),
-    offset: Array[Double] = Array.fill[Double](3)(0),
-    pdr_return_nb: Array[Long] = Array.fill[Long](15)(0),
-    pdr_offset0: Int = 0,
-    systemID: String = "spark",
-    software: String = "fr.ign.spark.iqmulus",
-    version: Version = Version(),
-    sourceID: Short = 0,
-    globalEncoding: Short = 0,
-    vlr_nb: Int = 0,
-    pdr_length_header: Short = 0,
-    projectID: ProjectID = ProjectID(),
-    creation: Array[Short] = Array[Short](0, 0),
-    waveform_offset: Long = 0,
-    evlr_offset: Long = 0,
-    evlr_nb: Int = 0
-) {
+  location: String,
+  pdr_format: Byte,
+  pdr_nb: Long = 0,
+  pmin: Array[Double] = Array.fill[Double](3)(0),
+  pmax: Array[Double] = Array.fill[Double](3)(0),
+  scale: Array[Double] = Array.fill[Double](3)(1),
+  offset: Array[Double] = Array.fill[Double](3)(0),
+  pdr_return_nb: Array[Long] = Array.fill[Long](15)(0),
+  pdr_offset0: Int = 0,
+  systemID: String = "spark",
+  software: String = "fr.ign.spark.iqmulus",
+  version: Version = Version(),
+  sourceID: Short = 0,
+  globalEncoding: Short = 0,
+  vlr_nb: Int = 0,
+  pdr_length_header: Short = 0,
+  projectID: ProjectID = ProjectID(),
+  creation: Array[Short] = Array[Short](0, 0),
+  waveform_offset: Long = 0,
+  evlr_offset: Long = 0,
+  evlr_nb: Int = 0) {
 
   def extraBytesSchema(fid: Int) = StructType(extraBytes.map(_.schema(fid).fields).fold(Array.empty)(_ ++ _))
   def customSchema = pdr_length != LasHeader.pdr_length(pdr_format)
@@ -344,15 +339,13 @@ object LasHeader {
     val color = Array(
       "red" -> ShortType,
       "green" -> ShortType,
-      "blue" -> ShortType
-    )
+      "blue" -> ShortType)
 
     val point = Array(
       "x" -> IntegerType, // OffsetScaledIntegerType(0, 0.01),
       "y" -> IntegerType, // OffsetScaledIntegerType(0, 0.01),
       "z" -> IntegerType, // OffsetScaledIntegerType(0, 0.01),
-      "intensity" -> ShortType
-    )
+      "intensity" -> ShortType)
 
     val fw = Array(
       "index" -> ByteType,
@@ -361,16 +354,14 @@ object LasHeader {
       "location" -> FloatType,
       "xt" -> FloatType,
       "yt" -> FloatType,
-      "zt" -> FloatType
-    )
+      "zt" -> FloatType)
 
     array(0) = point ++ Array(
       "flags" -> ByteType,
       "classification" -> ByteType,
       "angle" -> ByteType,
       "user" -> ByteType,
-      "source" -> ShortType
-    )
+      "source" -> ShortType)
 
     array(6) = point ++ Array(
       "return" -> ByteType,
@@ -379,8 +370,7 @@ object LasHeader {
       "user" -> ByteType,
       "angle" -> ShortType,
       "source" -> ShortType,
-      "time" -> DoubleType
-    )
+      "time" -> DoubleType)
 
     array(1) = array(0) ++ Array("time" -> DoubleType)
     array(2) = array(0) ++ color
@@ -438,8 +428,7 @@ object LasHeader {
       buffer.getInt(8),
       buffer.getShort(12),
       buffer.getShort(14),
-      get(16, 8, 1, buffer.get)
-    )
+      get(16, 8, 1, buffer.get))
     val version = Version(buffer.get(24), buffer.get(25))
     val systemID = readString(26, 32)
     val software = readString(58, 32)
@@ -493,7 +482,6 @@ object LasHeader {
       creation,
       waveform_offset,
       evlr_offset,
-      evlr_nb
-    )
+      evlr_nb)
   }
 }

@@ -111,8 +111,8 @@ case class ScaledInteger(n: Int, scale: Double) extends Ordered[ScaledInteger] w
 }
 
 class OffsetScaledIntegerType(val offset: Double, val scale: Double)
-    extends UserDefinedType[OffsetScaledInteger]
-    with MergeableType {
+  extends UserDefinedType[OffsetScaledInteger]
+  with MergeableType {
 
   require(scale > 0)
 
@@ -157,8 +157,8 @@ class OffsetScaledIntegerType(val offset: Double, val scale: Double)
 }
 
 class ScaledIntegerType(val scale: Double)
-    extends UserDefinedType[ScaledInteger]
-    with MergeableType {
+  extends UserDefinedType[ScaledInteger]
+  with MergeableType {
 
   require(scale > 0)
 

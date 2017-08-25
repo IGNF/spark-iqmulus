@@ -51,8 +51,7 @@ package object ply {
     def saveAsPly(
       filename: String,
       schema: StructType,
-      littleEndian: Boolean
-    ) = {
+      littleEndian: Boolean) = {
       val path = new org.apache.hadoop.fs.Path(filename)
       val fs = path.getFileSystem(new org.apache.hadoop.conf.Configuration)
       val f = fs.create(path)

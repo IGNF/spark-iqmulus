@@ -41,8 +41,7 @@ class LasSuite extends FunSuite with ShouldMatchers {
     (1, 2, 0, 0, 20, 497536, "b64b1632b5bf529b6ff7ebd75edcff7f5432f722", "http://www.liblas.org/samples/libLAS_1.2.las"),
     (1, 0, 0, 5, 20, 11781, "66f9d75c462532124dba56c617782e3570087de4", "http://www.liblas.org/samples/lt_srs_rt.las"),
     (1, 1, 0, 0, 20, 11781, "59f38a04c1aa3ad4989c30331e216e09b4f5aae8", "http://www.liblas.org/samples/lt_srs_rt-qt-1.1.las"),
-    (1, 0, 1, 3, 28, 10, "db932601871eded2a3816573e481d810f86a4c72", "http://www.liblas.org/samples/srs.las")
-  )
+    (1, 0, 1, 3, 28, 10, "db932601871eded2a3816573e481d810f86a4c72", "http://www.liblas.org/samples/srs.las"))
 
   val resources = "src/test/resources"
   new File(resources).mkdirs

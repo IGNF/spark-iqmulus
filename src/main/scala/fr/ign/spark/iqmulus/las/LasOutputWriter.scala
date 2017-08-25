@@ -19,7 +19,7 @@ package fr.ign.spark.iqmulus.las
 import org.apache.spark.sql.types._
 import org.apache.hadoop.mapreduce.{ TaskAttemptID, RecordWriter, TaskAttemptContext }
 import java.io.DataOutputStream
-import org.apache.spark.sql.sources.OutputWriter
+import org.apache.spark.sql.execution.datasources.OutputWriter
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.hadoop.io.{ NullWritable, BytesWritable }
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat
@@ -35,9 +35,8 @@ class LasOutputWriter(
   formatOpt: Option[Byte] = None,
   version: Version = Version(),
   offset: Array[Double] = Array(0F, 0F, 0F),
-  scale: Array[Double] = Array(0.01F, 0.01F, 0.01F)
-)
-    extends OutputWriter {
+  scale: Array[Double] = Array(0.01F, 0.01F, 0.01F))
+  extends OutputWriter {
 
   private val file = {
     val path = getDefaultWorkFile("/1.pdr")
@@ -97,7 +96,6 @@ class LasOutputWriter(
     org.apache.hadoop.fs.FileUtil.copyMerge(
       fs, getDefaultWorkFile("/"),
       fs, getDefaultWorkFile(".las"),
-      true, context.getConfiguration, ""
-    )
+      true, context.getConfiguration, "")
   }
 }

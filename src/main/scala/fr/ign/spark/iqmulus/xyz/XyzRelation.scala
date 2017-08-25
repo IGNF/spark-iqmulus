@@ -18,7 +18,7 @@ package fr.ign.spark.iqmulus.xyz
 
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.sources.HadoopFsRelation
+import org.apache.spark.sql.execution.datasources.{ HadoopFsRelation, OutputWriterFactory }
 import org.apache.spark.sql.Row
 import org.apache.spark.rdd.RDD
 import org.apache.hadoop.fs.FileStatus
@@ -31,14 +31,12 @@ object XyzRelation {
     StructField("z", FloatType, false),
     StructField("r", ByteType, false),
     StructField("g", ByteType, false),
-    StructField("b", ByteType, false)
-  ))
+    StructField("b", ByteType, false)))
 
   val xyzSchema = StructType(Array(
     StructField("x", FloatType, false),
     StructField("y", FloatType, false),
-    StructField("z", FloatType, false)
-  ))
+    StructField("z", FloatType, false)))
 
 }
 
@@ -46,13 +44,12 @@ class XyzRelation(
   override val paths: Array[String],
   maybeDataSchema: Option[StructType],
   override val userDefinedPartitionColumns: Option[StructType],
-  parameters: Map[String, String]
-)(@transient val sqlContext: SQLContext)
-    extends HadoopFsRelation {
+  parameters: Map[String, String])(@transient val sqlContext: SQLContext)
+  extends HadoopFsRelation {
 
   override lazy val dataSchema = maybeDataSchema.getOrElse(XyzRelation.xyzrgbSchema)
 
-  override def prepareJobForWrite(job: org.apache.hadoop.mapreduce.Job): org.apache.spark.sql.sources.OutputWriterFactory = ???
+  override def prepareJobForWrite(job: org.apache.hadoop.mapreduce.Job): OutputWriterFactory = ???
 
   override def buildScan(inputs: Array[FileStatus]): RDD[Row] = {
     val lines = sqlContext.sparkContext.textFile(inputs.map(_.getPath).mkString("", ",", ""))
