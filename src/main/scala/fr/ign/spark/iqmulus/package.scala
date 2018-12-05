@@ -43,16 +43,14 @@ package object iqmulus {
           ArrayType(rightElementType, rightContainsNull)) =>
           ArrayType(
             merge(leftElementType, rightElementType),
-            leftContainsNull || rightContainsNull
-          )
+            leftContainsNull || rightContainsNull)
 
         case (MapType(leftKeyType, leftValueType, leftContainsNull),
           MapType(rightKeyType, rightValueType, rightContainsNull)) =>
           MapType(
             merge(leftKeyType, rightKeyType),
             merge(leftValueType, rightValueType),
-            leftContainsNull || rightContainsNull
-          )
+            leftContainsNull || rightContainsNull)
 
         case (leftStruct: StructType, rightStruct: StructType) =>
           merge(leftStruct, rightStruct)
@@ -129,8 +127,7 @@ package object iqmulus {
         rightMapped.get(fLeft.name).map { fRight =>
           fLeft.copy(
             dataType = merge(fLeft.dataType, fRight.dataType),
-            nullable = fLeft.nullable || fRight.nullable
-          )
+            nullable = fLeft.nullable || fRight.nullable)
         }
           .orElse(Some(fLeft.copy(nullable = true)))
           .foreach(newFields += _)
@@ -171,7 +168,7 @@ package object iqmulus {
   }
 
   case class RowOutputStream(dos: DataOutputStream, littleEndian: Boolean,
-      schema: StructType, dataSchema: StructType) {
+    schema: StructType, dataSchema: StructType) {
 
     def this(dos: DataOutputStream, littleEndian: Boolean,
       schema: StructType) { this(dos, littleEndian, schema, schema) }
@@ -220,8 +217,7 @@ package object iqmulus {
     srcFS: FileSystem, contents: Array[Any],
     dstFS: FileSystem, dstFile: Path,
     deleteSource: Boolean,
-    conf: Configuration
-  ) = {
+    conf: Configuration) = {
     val out = dstFS.create(dstFile);
 
     try {

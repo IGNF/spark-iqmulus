@@ -19,7 +19,7 @@ package fr.ign.spark.iqmulus
 import java.nio.{ ByteBuffer, ByteOrder }
 import org.apache.hadoop.io._
 import org.apache.spark.sql.{ Row, SQLContext }
-import org.apache.spark.sql.sources.HadoopFsRelation
+import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 import org.apache.spark.sql.types._
 import org.apache.spark.rdd.{ NewHadoopPartition, NewHadoopRDD, RDD, UnionRDD }
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat
@@ -28,24 +28,23 @@ import org.apache.hadoop.fs.{ FileSystem, FileStatus, Path }
 import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.Logging
+// import org.apache.spark.Logging
 
 // workaround the protected Cast nullSafeEval to make it public
 class IQmulusCast(child: Expression, dataType: DataType)
-    extends Cast(child, dataType) {
+  extends Cast(child, dataType) {
   override def nullSafeEval(input: Any): Any = super.nullSafeEval(input)
 }
 
 case class BinarySection(
-    location: String,
-    var offset: Long,
-    count: Long,
-    littleEndian: Boolean,
-    private val _schema: StructType,
-    private val _stride: Int = 0,
-    pidName: String = "pid",
-    fidName: String = "fid"
-) {
+  location: String,
+  var offset: Long,
+  count: Long,
+  littleEndian: Boolean,
+  private val _schema: StructType,
+  private val _stride: Int = 0,
+  pidName: String = "pid",
+  fidName: String = "fid") {
 
   val sizes = _schema.fields.map(_.dataType.defaultSize)
   val offsets = sizes.scanLeft(0)(_ + _)
@@ -119,9 +118,8 @@ case class BinarySection(
  * @param TODO
  */
 abstract class BinarySectionRelation(
-  parameters: Map[String, String]
-)
-    extends HadoopFsRelation {
+  parameters: Map[String, String])
+  extends HadoopFsRelation {
 
   def maybeDataSchema: Option[StructType] = None
 
@@ -139,15 +137,13 @@ abstract class BinarySectionRelation(
       val builder = new MetadataBuilder().withMetadata(field.metadata)
       val metadata = builder.putStringArray("paths", paths).build
       field.copy(metadata = metadata)
-    } else field
-  ))
+    } else field))
 
-  override def prepareJobForWrite(job: org.apache.hadoop.mapreduce.Job): org.apache.spark.sql.sources.OutputWriterFactory = ???
+  override def prepareJobForWrite(job: org.apache.hadoop.mapreduce.Job): org.apache.spark.sql.execution.datasources.OutputWriterFactory = ???
 
   private[iqmulus] def baseRDD(
     section: BinarySection,
-    toSeq: ((LongWritable, BytesWritable) => Seq[Any])
-  ): RDD[Row] = {
+    toSeq: ((LongWritable, BytesWritable) => Seq[Any])): RDD[Row] = {
     val conf = sqlContext.sparkContext.hadoopConfiguration
     conf.set(FixedLengthBinarySectionInputFormat.RECORD_OFFSET_PROPERTY, section.offset.toString)
     conf.set(FixedLengthBinarySectionInputFormat.RECORD_COUNT_PROPERTY, section.count.toString)
@@ -157,8 +153,7 @@ abstract class BinarySectionRelation(
       section.location,
       classOf[FixedLengthBinarySectionInputFormat],
       classOf[LongWritable],
-      classOf[BytesWritable]
-    )
+      classOf[BytesWritable])
     rdd.map({ case (pid, bytes) => Row.fromSeq(toSeq(pid, bytes)) })
   }
 
@@ -173,10 +168,8 @@ abstract class BinarySectionRelation(
         requiredSections.map { sec =>
           baseRDD(sec, sec.getSubSeq(
             paths.indexOf(sec.location),
-            schema, requiredColumns
-          ))
-        }
-      )
+            schema, requiredColumns))
+        })
     }
   }
 

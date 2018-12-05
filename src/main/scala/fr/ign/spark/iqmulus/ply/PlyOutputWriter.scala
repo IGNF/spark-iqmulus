@@ -20,7 +20,7 @@ import org.apache.spark.sql.types._
 import org.apache.hadoop.mapreduce.{ TaskAttemptID, RecordWriter, TaskAttemptContext, JobContext }
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter
 import java.io.DataOutputStream
-import org.apache.spark.sql.sources.OutputWriter
+import org.apache.spark.sql.execution.datasources.OutputWriter
 import org.apache.hadoop.io.{ NullWritable, BytesWritable }
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat
 import org.apache.hadoop.fs.Path
@@ -33,9 +33,8 @@ class PlyOutputWriter(
   context: TaskAttemptContext,
   dataSchema: StructType,
   element: String,
-  littleEndian: Boolean
-)
-    extends OutputWriter {
+  littleEndian: Boolean)
+  extends OutputWriter {
 
   private val file = {
     val path = getDefaultWorkFile(s".ply.$element")

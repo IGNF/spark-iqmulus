@@ -17,7 +17,7 @@
 package fr.ign.spark.iqmulus.ply
 
 import org.apache.hadoop.mapreduce.TaskAttemptContext
-import org.apache.spark.sql.sources.{ OutputWriter, OutputWriterFactory }
+import org.apache.spark.sql.execution.datasources.{ OutputWriter, OutputWriterFactory }
 import org.apache.spark.sql.types.StructType
 
 private[ply] class PlyOutputWriterFactory(element: String, littleEndian: Boolean) extends OutputWriterFactory {
@@ -25,7 +25,6 @@ private[ply] class PlyOutputWriterFactory(element: String, littleEndian: Boolean
   override def newInstance(
     path: String,
     dataSchema: StructType,
-    context: TaskAttemptContext
-  ): OutputWriter =
+    context: TaskAttemptContext): OutputWriter =
     new PlyOutputWriter(path, context, dataSchema, element, littleEndian)
 }

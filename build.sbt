@@ -9,7 +9,7 @@ scalaVersion := "2.10.6"
 
 spName := "IGNF/spark-iqmulus"
 
-sparkVersion := "1.6.3"
+sparkVersion := "2.2.0"
 
 val testSparkVersion = settingKey[String]("The version of Spark to test against.")
 
@@ -75,6 +75,6 @@ parallelExecution in Test := false
 // Skip tests during assembly
 test in assembly := {}
 
-ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
-  scalaBinaryVersion.value == "2.11"
-}
+// ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
+//   scalaBinaryVersion.value == "2.11"
+// }

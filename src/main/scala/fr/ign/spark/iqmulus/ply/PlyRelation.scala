@@ -22,22 +22,21 @@ import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.types._
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.mapreduce.lib.output.{ FileOutputFormat, FileOutputCommitter }
-import org.apache.spark.sql.sources.OutputWriterFactory
+import org.apache.spark.sql.execution.datasources.OutputWriterFactory
 import org.apache.hadoop.mapreduce.{ TaskAttemptContext, JobContext }
 import org.apache.spark.deploy.SparkHadoopUtil
 import scala.util.{ Try, Success, Failure }
-import org.apache.spark.Logging
+// import org.apache.spark.Logging
 
 class PlyOutputCommitter(
-    name: Path,
-    context: TaskAttemptContext
-) extends FileOutputCommitter(name, context) with Logging {
+  name: Path,
+  context: TaskAttemptContext) extends FileOutputCommitter(name, context) {
 
   override def commitJob(job: JobContext) = {
     super.commitJob(job);
 
     val conf = job.getConfiguration
-    val outputFiles = conf.getStrings("fr.ign.spark.iqmulus.outputFiles","").map(new Path(_).getName)
+    val outputFiles = conf.getStrings("fr.ign.spark.iqmulus.outputFiles", "").map(new Path(_).getName)
     val outputFilesCol = conf.get("fr.ign.spark.iqmulus.outputFilesCol")
 
     val fs = name.getFileSystem(conf)
@@ -51,7 +50,7 @@ class PlyOutputCommitter(
         // val headers = paths.flatMap(path => Try(PlyHeader.read(path)) match { // doesn't work for URI like hdfs://
         val headers = paths.flatMap(path => Try(PlyHeader.read(path.toString, fs.open(path))) match {
           case Success(h) => Some(h)
-          case Failure(e) => logWarning(s"Skipping $path : e.getMessage"); None
+          case Failure(e) => None //logWarning(s"Skipping $path : e.getMessage"); None
         })
         // assume all headers have been read successfully
         require(headers.length == paths.length)
@@ -67,15 +66,13 @@ class PlyOutputCommitter(
         new Path(
           replace(path.getParent),
           if (split.length != 2 || split(0) != outputFilesCol) path.getName
-          else try { outputFiles(split(1).takeWhile(_.isDigit).toInt) } catch { case _: java.lang.NumberFormatException => path.getName }
-        )
+          else try { outputFiles(split(1).takeWhile(_.isDigit).toInt) } catch { case _: java.lang.NumberFormatException => path.getName })
       }
       val elementStatuses = header.elements.map(_.name).flatMap(el => fs.globStatus(new Path(path, s"*.ply.$el")))
       fr.ign.spark.iqmulus.copyMerge(
         fs, Array(header.toString()) ++ elementStatuses,
         fs, replace(path.suffix(".ply")),
-        false, conf
-      )
+        false, conf)
       fs.delete(path, true)
     }
   }
@@ -91,9 +88,8 @@ class PlyRelation(
   override val paths: Array[String],
   override val maybeDataSchema: Option[StructType],
   override val userDefinedPartitionColumns: Option[StructType],
-  parameters: Map[String, String]
-)(@transient val sqlContext: SQLContext)
-    extends BinarySectionRelation(parameters) {
+  parameters: Map[String, String])(@transient val sqlContext: SQLContext)
+  extends BinarySectionRelation(parameters) {
 
   val element = parameters.getOrElse("element", "vertex")
   val littleEndian = parameters.getOrElse("littleEndian", "true").toBoolean
@@ -110,7 +106,7 @@ class PlyRelation(
       }
     } match {
       case Success(h) => Some(h)
-      case Failure(e) => logWarning(s"Skipping $location : ${e.getMessage}"); None
+      case Failure(e) => None //logWarning(s"Skipping $location : ${e.getMessage}"); None
     }
   }
 
