@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 IGN
+ * Copyright 2015-2019 IGN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,12 +32,11 @@ class PlyOutputWriter(
   name: String,
   context: TaskAttemptContext,
   dataSchema: StructType,
-  element: String,
-  littleEndian: Boolean)
+  options: PlyOptions)
   extends OutputWriter {
 
   private val file = {
-    val path = getDefaultWorkFile(s".ply.$element")
+    val path = getDefaultWorkFile(s".ply.${options.element}")
     val fs = path.getFileSystem(context.getConfiguration)
     fs.create(path)
   }
@@ -47,7 +46,7 @@ class PlyOutputWriter(
   // strip out ids
   private val schema = StructType(dataSchema.filterNot { Seq("fid", "pid") contains _.name })
 
-  private val recordWriter = new RowOutputStream(new DataOutputStream(file), littleEndian, schema, dataSchema)
+  private val recordWriter = new RowOutputStream(new DataOutputStream(file), options.littleEndian, schema, dataSchema)
 
   def getDefaultWorkFile(extension: String): Path = {
     val uniqueWriteJobId = context.getConfiguration.get("spark.sql.sources.writeJobUUID")
@@ -68,7 +67,7 @@ class PlyOutputWriter(
     val path = getDefaultWorkFile(".ply.header")
     val fs = path.getFileSystem(context.getConfiguration)
     val dos = new java.io.DataOutputStream(fs.create(path))
-    val header = new PlyHeader(path.toString, littleEndian, Map(element -> ((count, schema))))
+    val header = new PlyHeader(path.toString, options.littleEndian, Map(options.element -> ((count, schema))))
     header.write(dos)
     dos.close
   }

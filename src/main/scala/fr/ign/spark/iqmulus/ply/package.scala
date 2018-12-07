@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 IGN
+ * Copyright 2015-2019 IGN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,9 +25,11 @@ package object ply {
    * Adds a method, `ply`, to DataFrameWriter that allows you to write ply files using
    * the DataFileWriter
    */
+  /*
   implicit class PlyDataFrameWriter(writer: DataFrameWriter) {
     def ply: String => Unit = writer.format("fr.ign.spark.iqmulus.ply").save
   }
+  */
 
   /**
    * Adds a method, `ply`, to DataFrameReader that allows you to read ply files using
@@ -67,4 +69,3 @@ package object ply {
     }
   }
 }
-

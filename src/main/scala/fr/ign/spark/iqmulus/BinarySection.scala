@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 IGN
+ * Copyright 2015-2019 IGN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -112,66 +112,3 @@ case class BinarySection(
     getSeqAux(fid, requiredFieldsWithOffsets) _
   }
 }
-
-/**
- * TODO
- * @param TODO
- */
-abstract class BinarySectionRelation(
-  parameters: Map[String, String])
-  extends HadoopFsRelation {
-
-  def maybeDataSchema: Option[StructType] = None
-
-  def sections: Array[BinarySection]
-
-  /**
-   * Determine the RDD Schema based on the header info.
-   * @return StructType instance
-   */
-  override lazy val dataSchema: StructType = StructType((maybeDataSchema match {
-    case Some(structType) => structType
-    case None => if (sections.isEmpty) StructType(Nil) else sections.map(_.schema).reduce(_ merge _)
-  }).map(
-    field => if (field.name == "fid") {
-      val builder = new MetadataBuilder().withMetadata(field.metadata)
-      val metadata = builder.putStringArray("paths", paths).build
-      field.copy(metadata = metadata)
-    } else field))
-
-  override def prepareJobForWrite(job: org.apache.hadoop.mapreduce.Job): org.apache.spark.sql.execution.datasources.OutputWriterFactory = ???
-
-  private[iqmulus] def baseRDD(
-    section: BinarySection,
-    toSeq: ((LongWritable, BytesWritable) => Seq[Any])): RDD[Row] = {
-    val conf = sqlContext.sparkContext.hadoopConfiguration
-    conf.set(FixedLengthBinarySectionInputFormat.RECORD_OFFSET_PROPERTY, section.offset.toString)
-    conf.set(FixedLengthBinarySectionInputFormat.RECORD_COUNT_PROPERTY, section.count.toString)
-    conf.set(FixedLengthBinarySectionInputFormat.RECORD_STRIDE_PROPERTY, section.stride.toString)
-    conf.set(FixedLengthBinarySectionInputFormat.RECORD_LENGTH_PROPERTY, section.length.toString)
-    val rdd = sqlContext.sparkContext.newAPIHadoopFile(
-      section.location,
-      classOf[FixedLengthBinarySectionInputFormat],
-      classOf[LongWritable],
-      classOf[BytesWritable])
-    rdd.map({ case (pid, bytes) => Row.fromSeq(toSeq(pid, bytes)) })
-  }
-
-  override def buildScan(requiredColumns: Array[String], inputs: Array[FileStatus]): RDD[Row] = {
-    if (inputs.isEmpty) {
-      sqlContext.sparkContext.emptyRDD[Row]
-    } else {
-      val inputLocations = inputs.map(_.getPath.toString)
-      val requiredSections = sections.filter(sec => inputLocations contains sec.location)
-      new UnionRDD[Row](
-        sqlContext.sparkContext,
-        requiredSections.map { sec =>
-          baseRDD(sec, sec.getSubSeq(
-            paths.indexOf(sec.location),
-            schema, requiredColumns))
-        })
-    }
-  }
-
-}
-

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 IGN
+ * Copyright 2015-2019 IGN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,17 @@
  * limitations under the License.
  */
 
-package fr.ign.spark.iqmulus.ply
+package fr.ign.spark.iqmulus.las
 
-import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.execution.datasources.HadoopFsRelation // HadoopFsRelationProvider
+import org.apache.hadoop.mapreduce.TaskAttemptContext
+import org.apache.spark.sql.execution.datasources.{ OutputWriter, OutputWriterFactory }
 import org.apache.spark.sql.types.StructType
 
-class DefaultSource extends HadoopFsRelationProvider {
+private[las] class LasOutputWriterFactory(format: Option[Byte], version: Version) extends OutputWriterFactory {
 
-  // override def shortName(): String = "ply"
-
-  override def createRelation(
-    sqlContext: SQLContext,
-    paths: Array[String],
-    dataSchema: Option[StructType],
-    partitionColumns: Option[StructType],
-    parameters: Map[String, String]): HadoopFsRelation = {
-    new PlyRelation(paths, dataSchema, partitionColumns, parameters)(sqlContext)
-  }
+  override def newInstance(
+    path: String,
+    dataSchema: StructType,
+    context: TaskAttemptContext): OutputWriter =
+    new LasOutputWriter(path, context, dataSchema, format, version)
 }

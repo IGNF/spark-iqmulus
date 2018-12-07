@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 IGN
+ * Copyright 2015-2019 IGN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,10 +32,7 @@ class LasOutputWriter(
   name: String,
   context: TaskAttemptContext,
   dataSchema: StructType,
-  formatOpt: Option[Byte] = None,
-  version: Version = Version(),
-  offset: Array[Double] = Array(0F, 0F, 0F),
-  scale: Array[Double] = Array(0.01F, 0.01F, 0.01F))
+  options: LasOptions)
   extends OutputWriter {
 
   private val file = {
@@ -44,12 +41,14 @@ class LasOutputWriter(
     fs.create(path)
   }
 
+  private val offset = options.offset
+  private val scale = options.scale
+  private val format = options.formatOpt.getOrElse(LasHeader.formatFromSchema(dataSchema))
+
   private val pmin = Array.fill[Double](3)(Double.PositiveInfinity)
   private val pmax = Array.fill[Double](3)(Double.NegativeInfinity)
   private val countByReturn = Array.fill[Long](15)(0)
   private def count = countByReturn.sum
-
-  private val format = formatOpt.getOrElse(LasHeader.formatFromSchema(dataSchema))
 
   // todo, extra bytes
   private val schema = LasHeader.schema(format)

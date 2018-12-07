@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 IGN
+ * Copyright 2015-2019 IGN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,44 +60,52 @@ private[iqmulus] class FixedLengthBinarySectionRecordReader
     }
   }
 
-  override def initialize(inputSplit: InputSplit, context: TaskAttemptContext) {
-    // the file input
-    val fileSplit = inputSplit.asInstanceOf[FileSplit]
+    override def initialize(inputSplit: InputSplit, context: TaskAttemptContext) {
+      // the file input
+      val fileSplit = inputSplit.asInstanceOf[FileSplit]
 
-    // the actual file we will be reading from
-    val file = fileSplit.getPath
-    // job configuration
-    val job = SparkHadoopUtil.get.getConfigurationFromJobContext(context)
-    // check compression
-    val codec = new CompressionCodecFactory(job).getCodec(file)
-    if (codec != null) {
-      throw new IOException("FixedLengthRecordReader does not support reading compressed files")
+      // the actual file we will be reading from
+      val file = fileSplit.getPath
+      // job configuration
+      val job = SparkHadoopUtil.get.getConfigurationFromJobContext(context)
+      // check compression
+      val codec = new CompressionCodecFactory(job).getCodec(file)
+      if (codec != null) {
+        throw new IOException("FixedLengthRecordReader does not support reading compressed files")
+      }
+      // get the record parameters
+      val offset = FixedLengthBinarySectionInputFormat.getRecordOffset(context)
+      val count = FixedLengthBinarySectionInputFormat.getRecordCount(context)
+      val length = FixedLengthBinarySectionInputFormat.getRecordLength(context)
+      val stride = FixedLengthBinarySectionInputFormat.getRecordStride(context)
+
+      initialize(fileSplit, offset, count, length, stride)
     }
-    // get the record length
-    recordLength = FixedLengthBinarySectionInputFormat.getRecordLength(context)
-    // get the record stride
-    recordStride = FixedLengthBinarySectionInputFormat.getRecordStride(context)
-    // get the record offset
-    recordOffset = FixedLengthBinarySectionInputFormat.getRecordOffset(context)
-    recordCount = FixedLengthBinarySectionInputFormat.getRecordCount(context)
 
-    // the byte position this fileSplit starts at
-    splitStart = Math.max(fileSplit.getStart, recordOffset)
-    splitStart = recordOffset + (((splitStart - recordOffset) / recordStride) * recordStride).toLong
-    // splitEnd byte marker that the fileSplit ends at
-    splitEnd = recordOffset + recordCount * recordStride
-    splitEnd = Math.min(fileSplit.getStart + fileSplit.getLength, splitEnd)
-    splitEnd = recordOffset + (((splitEnd - recordOffset) / recordStride) * recordStride).toLong
 
-    // get the filesystem
-    val fs = file.getFileSystem(job)
-    // open the File
-    fileInputStream = fs.open(file)
-    // seek to the splitStart position
-    fileInputStream.seek(splitStart)
-    // set our current position
-    currentPosition = splitStart
-  }
+      override def initialize(inputSplit: FileSplit, offset: Long, count: Long, length: Int, stride: Int) {
+      recordOffset = offset
+       recordCount = count
+       recordLength = length
+       recordStride = stride
+       
+        // the byte position this fileSplit starts at
+        splitStart = Math.max(fileSplit.getStart, recordOffset)
+        splitStart = recordOffset + (((splitStart - recordOffset) / recordStride) * recordStride).toLong
+        // splitEnd byte marker that the fileSplit ends at
+        splitEnd = recordOffset + recordCount * recordStride
+        splitEnd = Math.min(fileSplit.getStart + fileSplit.getLength, splitEnd)
+        splitEnd = recordOffset + (((splitEnd - recordOffset) / recordStride) * recordStride).toLong
+
+        // get the filesystem
+        val fs = file.getFileSystem(job)
+        // open the File
+        fileInputStream = fs.open(file)
+        // seek to the splitStart position
+        fileInputStream.seek(splitStart)
+        // set our current position
+        currentPosition = splitStart
+      }
 
   override def nextKeyValue(): Boolean = {
     if (recordKey == null) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 IGN
+ * Copyright 2015-2019 IGN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,8 +73,7 @@ package object iqmulus {
         case (left: MergeableType, right) if left.mergeable(right) => left.merge(right)
         case (left, right: MergeableType) if right.mergeable(left) => right.merge(left)
 
-        case (leftUdt: UserDefinedType[_], rightUdt: UserDefinedType[_]) if leftUdt.userClass == rightUdt.userClass =>
-          leftUdt
+        // case (leftUdt: UserDefinedType[_], rightUdt: UserDefinedType[_]) if leftUdt.userClass == rightUdt.userClass => leftUdt
 
         case (leftType, rightType) if leftType == rightType => leftType
 
@@ -160,7 +159,7 @@ package object iqmulus {
       case DoubleType => b => b getDouble offset
       case NullType => b => null
       //     case s : StructType => b => s.foreach(f=>get(f.dataType)( ??? )(b))
-      case udt: UserDefinedType[_] => get(udt.sqlType)(offset)
+      // case udt: UserDefinedType[_] => get(udt.sqlType)(offset)
       case other => sys.error(s"Unsupported type $other")
     }
 
@@ -200,7 +199,7 @@ package object iqmulus {
         case DoubleType => buffer putDouble (row.getDouble(i))
         case NullType => ()
         //        case s : StructType => s.foreach(f => put(row)(f.dataType, ??? ))
-        case udt: UserDefinedType[_] => put(udt.sqlType, udt.serialize(row.get(i)))
+        // case udt: UserDefinedType[_] => put(udt.sqlType, udt.serialize(row.get(i)))
         case other => sys.error(s"Unsupported type $other")
       }
 
@@ -241,4 +240,3 @@ package object iqmulus {
   }
 
 }
-

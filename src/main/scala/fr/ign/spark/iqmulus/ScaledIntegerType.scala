@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 IGN
+ * Copyright 2015-2019 IGN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -118,10 +118,9 @@ class OffsetScaledIntegerType(val offset: Double, val scale: Double)
 
   override def sqlType: DataType = IntegerType
 
-  override def serialize(obj: Any): Int = obj match {
+  override def serialize(obj: OffsetScaledInteger): Int = obj match {
     case OffsetScaledInteger(n, o, s) =>
       require(s == scale && o == offset); n
-    case n: Int => n
   }
 
   override def deserialize(datum: Any): OffsetScaledInteger = {
@@ -164,10 +163,9 @@ class ScaledIntegerType(val scale: Double)
 
   override def sqlType: DataType = IntegerType
 
-  override def serialize(obj: Any): Int = obj match {
+  override def serialize(obj: ScaledInteger): Int = obj match {
     case ScaledInteger(n, s) =>
       require(s == scale); n
-    case n: Int => n
   }
 
   override def deserialize(datum: Any): ScaledInteger = {

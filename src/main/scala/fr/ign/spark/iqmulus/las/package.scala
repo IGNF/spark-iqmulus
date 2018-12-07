@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 IGN
+ * Copyright 2015-2019 IGN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package object las {
    * Adds a method, `las`, to DataFrameWriter that allows you to write las files using
    * the DataFileWriter
    */
+  /*
   implicit class LasDataFrameWriter(writer: DataFrameWriter) {
     def las: String => Unit = writer.format("fr.ign.spark.iqmulus.las").save
     def lasformat(format: Byte): LasDataFrameWriter = writer.option("lasformat", format.toString)
@@ -33,7 +34,7 @@ package object las {
     def minor(m: Byte): LasDataFrameWriter = writer.option("major", m.toString)
     def version(v: String): LasDataFrameWriter = writer.option("version", v)
   }
-
+*/
   /**
    * Adds a method, `las`, to DataFrameReader that allows you to read las files using
    * the DataFileReade

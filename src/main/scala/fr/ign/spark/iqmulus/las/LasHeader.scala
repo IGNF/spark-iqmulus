@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 IGN
+ * Copyright 2015-2019 IGN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -260,7 +260,7 @@ Compressed:                  False
 Number of Points by Return:  ${pdr_return_nb.mkString(" ")}%s
 Scale Factor X Y Z:          ${scale.mkString(" ")}%s
 Offset X Y Z:                ${offset.mkString(" ")}%s
-Min X Y Z:                   ${pmin(0)}%.2f ${pmin(1)}%.2f ${pmin(2)}%f 
+Min X Y Z:                   ${pmin(0)}%.2f ${pmin(1)}%.2f ${pmin(2)}%f
 Max X Y Z:                   ${pmax(0)}%.2f ${pmax(1)}%.2f ${pmax(2)}%f
 Spatial Reference:           None
 

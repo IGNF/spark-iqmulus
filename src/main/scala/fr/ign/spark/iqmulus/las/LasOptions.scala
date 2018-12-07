@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 IGN
+ * Copyright 2015-2019 IGN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +16,23 @@
 
 package fr.ign.spark.iqmulus.las
 
-import org.apache.hadoop.mapreduce.TaskAttemptContext
-import org.apache.spark.sql.execution.datasources.{ OutputWriter, OutputWriterFactory }
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
+import fr.ign.spark.iqmulus.HeaderOptions
 
-private[las] class LasOutputWriterFactory(format: Option[Byte], version: Version) extends OutputWriterFactory {
+/**
+ * Options for the LAS data source.
+ */
+private[las] class LasOptions(@transient protected val parameters: CaseInsensitiveMap[String]) {
 
-  override def newInstance(
-    path: String,
-    dataSchema: StructType,
-    context: TaskAttemptContext): OutputWriter =
-    new LasOutputWriter(path, context, dataSchema, format, version)
+  import LasOptions._
+
+  def this(parameters: Map[String, String]) = this(CaseInsensitiveMap(parameters))
+
+  val formatOpt = None
+  val version = Version()
+  val offset = Array(0D, 0D, 0D)
+  val scale = Array(0.01D, 0.01D, 0.01D)
+}
+
+private[las] object LasOptions {
 }

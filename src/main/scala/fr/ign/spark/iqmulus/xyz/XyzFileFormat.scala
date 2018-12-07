@@ -1,6 +1,6 @@
 
 /*
- * Copyright 2015-2017 IGN
+ * Copyright 2015-2019 IGN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,6 @@
 
 package fr.ign.spark.iqmulus.xyz
 
-import java.io.ObjectInputStream
-import java.io.ObjectOutputStream
-import java.io.IOException
-import scala.util.control.NonFatal
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.mapreduce.Job
@@ -37,28 +33,7 @@ import org.apache.spark.sql.sources.DataSourceRegister
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 
-class SerializableConfiguration(@transient var value: Configuration) extends Serializable {
-  private def tryOrIOException[T](block: => T): T = {
-    try {
-      block
-    } catch {
-      case e: IOException =>
-        throw e
-      case NonFatal(e) =>
-        throw new IOException(e)
-    }
-  }
-
-  private def writeObject(out: ObjectOutputStream): Unit = tryOrIOException {
-    out.defaultWriteObject()
-    value.write(out)
-  }
-
-  private def readObject(in: ObjectInputStream): Unit = tryOrIOException {
-    value = new Configuration(false)
-    value.readFields(in)
-  }
-}
+import fr.ign.spark.iqmulus.SerializableConfiguration
 
 object XyzFileFormat {
 
@@ -80,7 +55,7 @@ object XyzFileFormat {
 /**
  * Provides access to XYZ data from pure SQL statements.
  */
-class DefaultSource extends TextBasedFileFormat with DataSourceRegister {
+class XyzFileFormat extends TextBasedFileFormat with DataSourceRegister {
 
   override def shortName(): String = "xyz"
 
@@ -88,7 +63,7 @@ class DefaultSource extends TextBasedFileFormat with DataSourceRegister {
 
   override def hashCode(): Int = getClass.hashCode()
 
-  override def equals(other: Any): Boolean = other.isInstanceOf[DefaultSource]
+  override def equals(other: Any): Boolean = other.isInstanceOf[XyzFileFormat]
 
   override def inferSchema(
     sparkSession: SparkSession,
@@ -148,24 +123,3 @@ class DefaultSource extends TextBasedFileFormat with DataSourceRegister {
   }
 
 }
-
-private[xyz] class XyzOutputWriter(
-  filename: String,
-  dataSchema: StructType,
-  context: TaskAttemptContext)
-  extends OutputWriter {
-
-  private lazy val dos = {
-    val path = new org.apache.hadoop.fs.Path(filename)
-    val fs = path.getFileSystem(context.getConfiguration)
-    val f = fs.create(path)
-    new java.io.DataOutputStream(f)
-  }
-
-  override def write(row: InternalRow): Unit = {
-    dos.writeBytes(row.toSeq(dataSchema).mkString("", "\t", "\n"))
-  }
-
-  override def close(): Unit = dos.close
-}
-
