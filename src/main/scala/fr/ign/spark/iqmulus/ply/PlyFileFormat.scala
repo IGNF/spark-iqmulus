@@ -116,16 +116,28 @@ class PlyFileFormat extends HeaderBasedFileFormat with DataSourceRegister {
     options: Map[String, String],
     hadoopConf: Configuration): (PartitionedFile) => Iterator[InternalRow] = {
 
+    val plyOptions = new PlyOptions(options)
     val broadcastedHadoopConf =
       sparkSession.sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
+    val broadcastedOptions =
+      sparkSession.sparkContext.broadcast(plyOptions)
 
     (file: PartitionedFile) => {
       val conf = broadcastedHadoopConf.value.value
+      val options = broadcastedOptions.value
       val origin = file.filePath
       val path = new Path(origin)
       val fs = path.getFileSystem(broadcastedHadoopConf.value.value)
 
-      Iterator.empty
+      var splitStart = Math.max(file.start, options.recordOffset)
+      splitStart = recordOffset + (((splitStart - recordOffset) / recordStride) * recordStride).toLong
+      // splitEnd byte marker that the fileSplit ends at
+      var splitEnd = recordOffset + recordCount * recordStride
+      splitEnd = Math.min(file.start + file.length, splitEnd)
+      splitEnd = recordOffset + (((splitEnd - recordOffset) / recordStride) * recordStride).toLong
+
+      reader.initialize(FileSplit)
+      new RecordReaderIterator(reader)
     }
   }
 
